@@ -1,6 +1,6 @@
 {
   "name": "karaoke-video-recorder",
-  "version": "20220222-00",
+  "version": "20220228-00",
   "private": true,
   "homepage" : ".",
   "dependencies": {

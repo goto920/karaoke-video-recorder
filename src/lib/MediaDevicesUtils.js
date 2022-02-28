@@ -7,8 +7,6 @@ export async function getAudioCaptureTrack(){
 
   try {
     stream = await navigator.mediaDevices.getDisplayMedia(constraints);
-    // console.log('getDisplayMedia: ');
-    // console.log(stream.getTracks());
 
     const videoTracks = stream.getVideoTracks();
     videoTracks.forEach((track) => track.stop());
@@ -21,6 +19,7 @@ export async function getAudioCaptureTrack(){
     console.error(err);
     return [];
   }
+
 }
 
 export async function getMonitorTrack(deviceId){
@@ -47,13 +46,19 @@ export async function getListOfMediaDevices(){
   const audioOutputDevices = [];
   const videoInputDevices = [];
 
-  // console.log("getListOfMediaDevices() called");
+  console.log("getListOfMediaDevices() called");
+
+  let tmpStream = null;
 
   try {
-    const tmpStream 
-      = await navigator.mediaDevices.getUserMedia({audio: true, video: true})
+
+    tmpStream 
+      = await navigator.mediaDevices.getUserMedia({audio: true, video: true});
+    console.log("initial getUserMedia() completed");
 
     const devices = await navigator.mediaDevices.enumerateDevices(); 
+    console.log("enumerateDevices completed");
+
    /* Firefox about:config sinkId (disabled(default) to enabled) 
       Use selectAudioOutput if available */
 
@@ -66,16 +71,19 @@ export async function getListOfMediaDevices(){
         audioOutputDevices.push({id: device.deviceId, label: device.label})
       } else console.error( device.kind + ", id: " 
           + device.deviceId, "label: " + device.label);
+      // console.log(device.kind, device.label);
     });
 
-    tmpStream.getTracks().forEach (track => track.stop()); 
+    if (tmpStream) tmpStream.getTracks().forEach (track => track.stop()); 
+
     return {audioInputDevices, videoInputDevices, audioOutputDevices};
+
   } catch (e) {
     console.error(e);
     return null;
   }
 
-} // end getListOf devices
+} // end getListOfDevices
 
 export async function getMicTrack(device){
   const constraints = {
@@ -126,10 +134,13 @@ https://stackoverflow.com/questions/52263471/how-to-create-a-mediastream-from-a-
 export function audioToMediaStreamTrack(ctx, audio){
 //  const ctx = new (window.AudioContext || window.webkitAudioContext) ();
   if (ctx.state === 'suspended') ctx.resume();
+
   const dest = ctx.createMediaStreamDestination();
   const source = ctx.createMediaElementSource(audio);
   source.connect(dest);
+
   const tracks = dest.stream.getAudioTracks();
+
   return tracks[0];
 }
 
@@ -140,15 +151,3 @@ export function showSupportedConstraints(){
   return supported;
 }
 
-export function mixStreamsAudio(ctx, video, audio){
-  const dest = ctx.createMediaStreamDestination();
-  dest.stream.addTrack(video.getVideoTracks()[0]);
-
-  const source0 = ctx.createMediaStreamSource(video)
-  const source1 = ctx.createMediaStreamSource(audio)
-
-  source0.connect(dest);
-  source1.connect(dest);
-
-  return dest.stream;
-}

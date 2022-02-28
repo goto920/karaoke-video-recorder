@@ -1,0 +1,112 @@
+export class MixAudioInStreams {
+
+   constructor(ctx, videoBlob, audioBlob, delay, balance, master){
+
+     this.ctx = ctx;
+     this.videoBlob = videoBlob;
+     this.audioBlob = audioBlob;
+     this.balance = balance; 
+     this.masterGain = master; 
+     this.video = null;
+     this.audio = null;
+     this.gainNode1 = ctx.createGain();
+     this.gainNode2 = ctx.createGain();
+     this.delayNode = ctx.createDelay();
+
+     this.init = this.init.bind(this);
+     this.close = this.close.bind(this);
+     this.setKaraokeDelay = this.setKaraokeDelay.bind(this);
+     this.setBalance = this.setBalance.bind(this);
+     this.setMasterGain = this.setMasterGain.bind(this);
+
+     this.init();
+   }
+
+   close(){
+     this.video.pause(); this.video = null;
+     this.audio.pause(); this.audio = null;
+   }
+
+   init(){
+
+     this.video = document.createElement("video");
+     this.video.src = URL.createObjectURL(this.videoBlob);
+     this.audio = new Audio();
+     this.audio.src = URL.createObjectURL(this.audioBlob);
+     const outputStream = new MediaStream();
+     this.stream = outputStream;
+
+     this.video.oncanplay = function () {
+       const video = this.video;
+       let videoStream = null;
+       if (video.captureStream){
+         videoStream = video.captureStream();
+         console.log('captureStream()');
+       } else if (video.mozCaptureStream){
+         videoStream = video.mozCaptureStream();
+         console.log('mozCcaptureStream()');
+       } else {
+         alert('video.captureStream() unavailable');
+       }
+
+       outputStream.addTrack(videoStream.getVideoTracks()[0]);
+
+       const vocal = this.ctx.createMediaStreamTrackSource(
+         videoStream.getAudioTracks()[0]);
+/*
+       const vocal = this.ctx.createMediaElementSource(this.video);
+*/
+
+       const karaoke = this.ctx.createMediaElementSource(this.audio);
+       const dest = this.ctx.createMediaStreamDestination();
+
+       vocal.connect(this.gainNode1);
+       this.gainNode1.connect(dest);
+
+       karaoke.connect(this.delayNode);
+       this.delayNode.connect(this.gainNode2);
+       this.gainNode2.connect(dest);
+
+       outputStream.addTrack(dest.stream.getAudioTracks()[0]);
+
+       const playNow = new CustomEvent('playback', {
+          detail: {
+            name: 'start video'
+          }
+       });
+
+       this.stream = outputStream;
+       outputStream.dispatchEvent(playNow);
+
+       this.video.play(); 
+       this.audio.play();
+     }.bind(this) // end oncanplay
+
+  } // end init()
+  
+
+  setKaraokeDelay(sec){
+    try {
+      this.delayNode.delayTime.value = sec; // sec
+      console.log('setDelay', sec);
+    } catch(e) {console.error(e)}
+  }
+
+  setBalance(vocalVol) { /* 0.0 to 1.0 */
+   try {
+     this.balance = vocalVol;
+     this.gainNode1.gain.value = this.balance*this.masterGain; 
+     this.gainNode2.gain.value = (1 - this.balance)*this.masterGain;
+     console.log('setBalance', this.balance);
+    } catch(e) {console.error(e);}
+  }
+
+  setMasterGain(gain){ /* 0.0 to max? */
+    try {
+      this.masterGain = gain;
+      this.setBalance(this.balance);
+      console.log('setMasterGain', gain);
+    } catch(e) {console.error(e)}
+  }
+
+};
