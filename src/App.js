@@ -528,8 +528,8 @@ https://stackoverflow.com/questions/52263471/how-to-create-a-mediastream-from-a-
     <hr />
     <div>
     Version: {packageJSON.version} &emsp; 
-    <a href="guide.html" target="_blank" rel="noreferrer">Brief Guide</a>
-    <a href="https://goto920.github.io/" target="_blank" 
+    <a href="guide/" target="_blank" rel="noreferrer">Brief Guide</a>
+    <a href="https://goto920.github.io/karaoke-video-recorder/" target="_blank" 
      rel="noreferrer"><br/>
     Manual/Update</a>&nbsp;on goto920.github.io<hr/>
     </div>

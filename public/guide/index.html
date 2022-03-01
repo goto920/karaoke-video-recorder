@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta charset="utf-8" />
+<title>KG's karaoke-video-player -- Brief User Guide</title>
+</head>
+<body>
+<h1>KG's karaoke-video-player -- Brief User Guide</h1>
+
+Update: 20220301
+
+<h2>1. What this app can do</h2>
+
+<ul>
+<li>Records a video of your practice/performance 
+with playing karaoke audio.</li>
+<LI>Exports the recorded video and recorded karaoke audio to be downloades.
+<li>Plays the mix of the recorded video and karaoke audio, then exports it.</li>
+<li>(optionally) Records and exports desktop audio 
+while playing YouTube video or whatever.</li>
+<LI>may use external webcam, audio interface, mics
+</uL>
+<p>
+This app runs on many web browsers including Firefox, Chrome, Safari and
+hopefully on mobile version of those.</p>
+<p>
+Downloaded JavaScript app is cached and runs offline until it is deleted
+from the web browsers cache.
+</p>
+
+<h3>Limitations</h3>
+
+<ul>
+<li>You cannot monitor your voice from headphones.
+The captured sound from a mic is late by some 10 milliseconds and useless
+for singing.
+<li>More than one live audio inputs cannot be used at the same time 
+by browsers capability limitation.
+Then a karaoke audio file should be prepared before singing.
+</ul>
+You may use direct monitoring function of mic input by enabling 
+so called "loop back" or "direct monitoring" on the device.
+
+<hr>
+<h2>2. Use cases (mainly about audio input)</h2>
+
+Video camera: Built-in or USB webcam. Also wireless webcam may work.
+<h3>A. Built-in speaker and mic</h3>
+
+<ul>
+<li>Pros: Simple and easy
+<li>Cons: Karaoke sound from the speakers is recorded with vocal.
+</ul>
+
+<h3>B. Headset (mic + headphones)</h3>
+
+Note: Headphones and built-in mic does not work for one hole jack
+on a laptop PC. The built-in mic will be switched to headset mic.
+
+<ul>
+<li>Pros: Simple and easy. No bleed of karaoke to mic.
+<li>Cons: Vocal may be too loud and distorted 
+unless input gain is properly adjusted by device dependent way.
+</ul>
+
+<h3>C. External USB audio input and headphones/earphones</h3>
+
+External USB audio includes USB microphone, USB audio interface, 
+USB Webcam, etc. Wireless webcam may work with additional latency.
+<ul>
+<li>Pros: Best vocal sound quality. No bleed of karaoke to mic.
+<li>Cons: Rather complex set up required.
+</ul>
+Audio output can be switched to an audio interface.
+Most USB mic nor webcam do not have audio output.
+<hr>
+<h2>3. Operation</h2>
+
+<hr>
+<table border="2">
+<tr>
+<td>
+<img src="karaoke-video-recorder.png">
+<td valign="top">
+<dl>
+<dt>(option) Only if you do not have a karaoke audio file.
+Record what you play on the device.
+<dd>"Screen/window/tab": Select region to capture (pop up)
+<dd>"Start": Start recording, then play some music on the device 
+<dd>"Stop": Stop recording or playback
+<dd>"Playback": (optional) Playback recorded audio to check if it is good.
+<dd>"Export": Export recorded audio for download</dd>
+</dt> 
+<hr>
+<dt>1) Select Inputs
+<dd>"Mic": select audio input (built-in or external)
+<dd>"Camera": select video input (built-in or external)</dd>
+</dt>
+<hr>
+<dt>2) Select audio output device (built-in or external)
+<hr>
+<dt>3) Select a file in local storage or cloud drives
+<hr>
+<dt>4) Record your performance
+<dd>"Start"
+<dd>sing along with karaoke
+<dd>"Stop"
+<dd>Go to 6) "Separate" for mixing with a video editor.
+<dd>Go to 5) for mixing with this app.</dd>
+</dt>
+<hr>
+<dt>5) Playback the mix of recorded video/vocal and karaoke audio.
+Delay is added to the karaoke track,
+because the video track has 20 to 100 milliseconds latency.
+<dd>"Start": the mix is automatically recorded in background.
+Try a several times to adjust delay and balance.
+<dd>"Delay": adjust delay
+<dd>"Balance": Add if vocal is too quiet and Sub if vocal is too loud.
+<dd>"Master": Adjust master gain. Use device volume too.
+<dd>"Stop": Stop playback and recording.</dd>
+</dt>
+<hr>
+<dt>6) Export for download
+<dd>"Separate": Exports video (vocal only) and karaoke audio separately. 
+Mix two tracks on a video editor.
+Click after Start, Stop in "4) Record and Sing."
+<dd>"Playback": Exports a video (mixed audio). 
+Click after Start, Stop in "5) Playback."
+</dl> 
+</table>
+
+<hr>
+</body>
+</html>
