@@ -2,7 +2,11 @@
 
 export async function getAudioCaptureTrack(){
 
-  const constraints = {video: true, audio: true}; // video is required
+  const constraints = {video: true, 
+     audio: {
+       autoGainControl: false, 
+       echoCancellation: false, noiseSuppression: false
+     }}; // video is required
   let stream = null;
 
   try {
@@ -26,7 +30,10 @@ export async function getMonitorTrack(deviceId){
 
   const audioConstraints = {
     video: false, 
-    audio: { deviceId: {exact: deviceId} }
+    audio: { deviceId: {exact: deviceId},
+          autoGainControl: false, 
+          echoCancellation: false, noiseSuppression: false
+           }
   };
 
   try {
@@ -57,7 +64,7 @@ export async function getListOfMediaDevices(){
     console.log("initial getUserMedia() completed");
 
     const devices = await navigator.mediaDevices.enumerateDevices(); 
-    console.log("enumerateDevices completed");
+   // console.log("enumerateDevices completed");
 
    /* Firefox about:config sinkId (disabled(default) to enabled) 
       Use selectAudioOutput if available */
@@ -85,12 +92,12 @@ export async function getListOfMediaDevices(){
 
 } // end getListOfDevices
 
-export async function getMicTrack(device){
+export async function getMicTrack(device, autoGain){
   const constraints = {
     video: false,
     audio: {
           deviceId: {exact: device},
-          autoGainControl: false, 
+          autoGainControl: autoGain, 
           echoCancellation: false, noiseSuppression: false
     }
   };

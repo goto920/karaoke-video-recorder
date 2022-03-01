@@ -1,17 +1,24 @@
 export class MixAudioInStreams {
 
    constructor(ctx, videoBlob, audioBlob, delay, balance, master){
-
+     
      this.ctx = ctx;
      this.videoBlob = videoBlob;
      this.audioBlob = audioBlob;
+     this.delay = delay;
      this.balance = balance; 
      this.masterGain = master; 
+
      this.video = null;
      this.audio = null;
+
+     this.delayNode = ctx.createDelay();
+     this.delayNode.delayTime.value = this.delay;
+
      this.gainNode1 = ctx.createGain();
      this.gainNode2 = ctx.createGain();
-     this.delayNode = ctx.createDelay();
+     this.gainNode1.gain.value = this.balance*this.masterGain; 
+     this.gainNode2.gain.value = (1 - this.balance)*this.masterGain;
 
      this.init = this.init.bind(this);
      this.close = this.close.bind(this);
@@ -88,7 +95,7 @@ export class MixAudioInStreams {
   setKaraokeDelay(sec){
     try {
       this.delayNode.delayTime.value = sec; // sec
-      console.log('setDelay', sec);
+//      console.log('setDelay', sec);
     } catch(e) {console.error(e)}
   }
 
@@ -97,7 +104,7 @@ export class MixAudioInStreams {
      this.balance = vocalVol;
      this.gainNode1.gain.value = this.balance*this.masterGain; 
      this.gainNode2.gain.value = (1 - this.balance)*this.masterGain;
-     console.log('setBalance', this.balance);
+//     console.log('setBalance', this.balance);
     } catch(e) {console.error(e);}
   }
 
@@ -105,7 +112,7 @@ export class MixAudioInStreams {
     try {
       this.masterGain = gain;
       this.setBalance(this.balance);
-      console.log('setMasterGain', gain);
+ //     console.log('setMasterGain', gain);
     } catch(e) {console.error(e)}
   }
 

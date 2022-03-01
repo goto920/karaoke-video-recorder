@@ -17,6 +17,7 @@ function App() {
 
   const [constructorHasRun, setConstructorHasRun] = useState(false);
   const [audioInputOptions, setAudioInputOptions] = useState([]);
+  const [autoGain, setAutoGain] = useState(false);
   const [videoInputOptions, setVideoInputOptions] = useState([]);
   const [audioOutputOptions, setAudioOutputOptions] = useState([]);
   const [karaokeDelay, setKaraokeDelay] = useState(0.06); // sec
@@ -24,32 +25,31 @@ function App() {
   const [masterGain, setMasterGain] = useState(1.0);
 
   const karaokeStream = new MediaStream();
+  const karaokeCaptureStream = new MediaStream();
   const monitorStream = new MediaStream();
   const recordStream = new MediaStream();
   const ctx = new (window.AudioContext || window.webkitAudioContext) ();
 
+  const exportKaraoke = [];
   const exportData = [];
   const exportData2 = [];
+  const exportMix = [];
   const karaokeSourceAudio = new Audio();
   const karaokeAudio = new Audio();
+  const monitorAudio = new Audio();
   const monitorVideo = videoRef.current;
 
   const [state, setState] = useState({
      karaokeFile: null,
      recorder: null,
      karaokeRecorder: null,
+     karaokeCaptureRecorder: null,
+     mixRecorder: null,
      mixer: null,
      exportBlob1: null,
-     exportBlob2: null
+     exportBlob2: null,
+     exportBlobMix: null,
   });
-/*
-  let karaokeFile = null;
-  let recorder = null;
-  let karaokeRecorder = null;
-  let mixer = null;
-  let exportBlob1 = null;
-  let exportBlob2 = null;
-*/
 
   function constructor() { 
 
@@ -99,7 +99,7 @@ function App() {
     if (e.target.value === 'none') return;
 
     try {
-       const track = await utils.getMicTrack(e.target.value)
+       const track = await utils.getMicTrack(e.target.value, autoGain);
        recordStream.addTrack(track);
        monitorStream.addTrack(track);
     } catch (err) {console.error(err);}
@@ -124,42 +124,88 @@ function App() {
     } catch (err) {console.error(err);}
   }
 
-  async function karaokeSource(e) {
-    if (karaokeStream.getAudioTracks().length > 0) return;
+  async function karaokeCapture(e) {
 
-    const track = await utils.getAudioCaptureTrack();
+    if (e.target.name === 'start'){
+      const newState = state;
+      newState.karaokeCaptureRecorder 
+        = new MediaRecorder(karaokeCaptureStream, {
+        audioBitsPerSecond: 128000,
+        mimeType: 'audio/webm;codecs=opus'
+      });
+      setState(newState);
+      exportKaraoke.length = 0;
+      state.karaokeCaptureRecorder.ondataavailable = function (e){
+        exportKaraoke.push(e.data);
+      };
+      state.karaokeCaptureRecorder.onstop = function (e){
+        karaokeCaptureStream.getTracks().forEach ( track => {
+          track.stop(); karaokeCaptureStream.removeTrack(track);   
+        });
+      };
 
-    if (track.langth > 0) {
-      karaokeStream.addTrack(track);
+      state.karaokeCaptureRecorder.start();
       return;
     }
-     
-    alert ('Display audio is NOT available on this browser. Trying monitor of audio device.');
 
-    let deviceId = null;
-    let deviceLabel = null;
-    let found = null;
+    if (e.target.name === 'stop'){
+      state.karaokeCaptureRecorder.stop();
+      monitorAudio.pause();
+      return;
+    }
 
-    audioInputOptions.forEach((option) => {
-      found = option.label.match(/monitor/i);
-      if (found) {
-        deviceId = option.value;
-        deviceLabel = option.label;
+    if (e.target.name === 'playback'){
+      monitorAudio.src = URL.createObjectURL(exportKaraoke[0]); 
+      monitorAudio.play();
+      return;
+    }
+
+    if (e.target.name === 'export'){
+      const saveLink = document.createElement("a");
+      saveLink.href = URL.createObjectURL(exportKaraoke[0]);
+      saveLink.download = "captured-audio.webm";
+      document.body.appendChild(saveLink);
+      saveLink.click();
+      document.body.removeChild(saveLink);
+      return;
+    }
+
+    if (e.target.name === 'screen') {
+      const track = await utils.getAudioCaptureTrack();
+
+      if (track.langth > 0) {
+        karaokeCaptureStream.addTrack(track);
+        return;
       }
-    });
+
+      alert ('Display audio is NOT available on this browser.' 
+             + 'Trying monitor of audio device.');
+
+      let deviceId = null;
+      let deviceLabel = null;
+      let found = null;
+
+      audioInputOptions.forEach((option) => {
+        found = option.label.match(/monitor/i);
+        if (found) {
+          deviceId = option.value;
+          deviceLabel = option.label;
+        }
+      });
        
-
-    if (!found) {
-      alert ('Sorry desktop audio is NOT available for the browser.');
-    } else {
-      try {
-        alert ('Desktop audio unavailable. Trying... ' + deviceLabel);
-        const track = await utils.getMonitorTrack(deviceId);
-        karaokeStream.addTrack(track);
-      } catch (e) {
-        alert ('Sorry monitor and mic cannot be used at once on this browser.');
-      }
-    } 
+      if (!found) {
+        alert ('Sorry desktop audio is NOT available for the browser.');
+      } else {
+        try {
+          alert ('Desktop audio unavailable. Trying... ' + deviceLabel);
+          const track = await utils.getMonitorTrack(deviceId);
+          karaokeCaptureStream.addTrack(track);
+        } catch (e) {
+          alert ('Sorry monitor and mic cannot be used at once on this browser.');
+        } // end catch
+      } // end if !found else 
+      return;
+    } // end if (screen)
 
   } // End karaokeSource()
 
@@ -173,14 +219,20 @@ https://stackoverflow.com/questions/52263471/how-to-create-a-mediastream-from-a-
     setState(newState);
   }
 
-  function setKaraokeSource(){
-    try { 
-      karaokeSourceAudio.src = URL.createObjectURL(state.karaokeFile);
-      const track = utils.audioToMediaStreamTrack(ctx, karaokeSourceAudio);
-      // console.log('track', track);
-      karaokeStream.addTrack(track);
-      karaokeAudio.srcObject = karaokeStream;
-    } catch (e) {console.error(e);}
+  function setKaraokeSource(e){
+
+    if (karaokeStream.getAudioTracks().length > 0) return;
+
+    if (e.target.name === 'file'){ 
+      try { 
+        karaokeSourceAudio.src = URL.createObjectURL(state.karaokeFile);
+        const track = utils.audioToMediaStreamTrack(ctx, karaokeSourceAudio);
+        // console.log('track', track);
+        karaokeStream.addTrack(track);
+        karaokeAudio.srcObject = karaokeStream;
+      } catch (e) {console.error(e);}
+    }
+
   }
  
   function startRecording(e){
@@ -286,6 +338,11 @@ https://stackoverflow.com/questions/52263471/how-to-create-a-mediastream-from-a-
     if (e.target.name === "stop"){
       state.mixer.close();
       state.mixer = null;
+      state.mixRecorder.stop();
+      /* for next Recording */
+      monitorVideo.srcObject = monitorStream;
+      monitorVideo.volume = 0;
+      monitorVideo.autoplay = true;
       return;
     }
 
@@ -294,6 +351,7 @@ https://stackoverflow.com/questions/52263471/how-to-create-a-mediastream-from-a-
        state.exportBlob1, state.exportBlob2,
        karaokeDelay, karaokeBalance, masterGain);
     setState(newState);
+
     state.mixer.stream.addEventListener('playback',playNow);
 
     function playNow(){
@@ -301,38 +359,74 @@ https://stackoverflow.com/questions/52263471/how-to-create-a-mediastream-from-a-
       console.log ('playNow()', mixer.stream.getTracks());
       monitorVideo.pause();
       monitorVideo.srcObject = mixer.stream; 
+      recordMix(mixer.stream);
       monitorVideo.load(); 
       monitorVideo.currentTime = 0;
       monitorVideo.muted = false;
       monitorVideo.volume = 1.0;
       monitorVideo.autoplay = false;
       monitorVideo.play();
-    }
+    } // playNow()
+
+    function recordMix(stream){
+
+      const options = {
+        audioBitsPerSecond: 128000,
+        mimeType: 'video/webm'
+      };
+
+      exportMix.length = 0;
+      const newState = state;
+      newState.mixRecorder = new MediaRecorder(stream,options);
+        setState(newState);
+      state.mixRecorder.start();
+
+      state.mixRecorder.ondataavailable 
+        = function (e) {exportMix.push(e.data); }
+
+      state.mixRecorder.onstop = function(e) {
+        const newState = state;
+        newState.exportBlobMix = new Blob(exportMix, {type: exportMix[0].type});
+        setState(newState);
+      } // onstop
+
+    } // recordMix()
 
   } // end playback
 
   function exportRecord(e){ 
 
-    try {
+    if (e.target.name === 'export') {
+      try {
+        const saveLink = document.createElement("a");
+        saveLink.href = URL.createObjectURL(state.exportBlob1);
+        saveLink.download = "video-export.webm";
+        document.body.appendChild(saveLink);
+        saveLink.click();
+        document.body.removeChild(saveLink);
+
+        const saveLink2 = document.createElement("a");
+        saveLink2.href = URL.createObjectURL(state.exportBlob2);
+        saveLink2.download = "audio-export.webm";
+        document.body.appendChild(saveLink2);
+        saveLink2.click();
+        document.body.removeChild(saveLink2);
+      }  catch(e){console.log('exportRecord: ' + e)}
+
+      return;
+   }
+ 
+   if (e.target.name === 'mix'){
       const saveLink = document.createElement("a");
-      saveLink.href = URL.createObjectURL(state.exportBlob1);
-      saveLink.download = "video-export.webm";
+      saveLink.href = URL.createObjectURL(state.exportBlobMix);
+      saveLink.download = "mixVideo-export.webm";
       document.body.appendChild(saveLink);
-      saveLink.click();
-      document.body.removeChild(saveLink);
+        saveLink.click();
+        document.body.removeChild(saveLink);
+      return;
+    }
 
-      const saveLink2 = document.createElement("a");
-      saveLink2.href = URL.createObjectURL(state.exportBlob2);
-      saveLink2.download = "audio-export.webm";
-      document.body.appendChild(saveLink2);
-      saveLink2.click();
-      document.body.removeChild(saveLink2);
-    } catch(e){console.log('exportRecord: ' + e)}
-  }
-
-
-  function exportMix(e){ 
-  }
+  } 
 
 /* Main flow */
   if(!constructorHasRun) constructor();
@@ -342,7 +436,20 @@ https://stackoverflow.com/questions/52263471/how-to-create-a-mediastream-from-a-
     <h2>KG's Karaoke Video Recorder</h2>
     <hr/>
     <div>
-    <b>1) Mic and Camera Input: </b> &emsp;<br/>
+    <b>(option) Record karaoke: &emsp;</b>
+    <button name="screen" onClick={karaokeCapture}>Screen/window/tab</button>
+    <br/>
+    <button name="start" onClick={karaokeCapture}>Start</button>&emsp;
+    <button name="stop" onClick={karaokeCapture}>Stop</button>&emsp;
+    <button name="playback" onClick={karaokeCapture}>Playback</button>&emsp;
+    <button name="export" onClick={karaokeCapture}>Export</button>
+    </div>
+    <hr/>
+    <div>
+    <b>1) Mic and Camera Input: </b> &emsp;
+    Autogain: &emsp;<button 
+      onClick={() => setAutoGain(!autoGain)}>{autoGain ? 'on': 'off'}</button>
+    <br/>
     Mic: <select name="vocalInput" onChange={selectVocalInput}>
     <option key="none" value="none" label="Not Selected">none</option>
     {audioInputOptions.map((option) =>
@@ -367,15 +474,13 @@ https://stackoverflow.com/questions/52263471/how-to-create-a-mediastream-from-a-
     </div>
     <hr/>
     <div>
-     <b>3) Karaoke audio source: </b>&emsp; <br/>
-     Local file: <input type="file" name="inputFile" 
+     <b>3) Karaoke audio file: </b>&emsp; 
+          <input type="file" name="inputFile" 
           accept="audio/*" onChange={loadFile}/> <br/>
-     Screen: <button name="karaokeSource" onClick={karaokeSource}>
-     select display/window/tab</button>
     </div>
     <hr/>
     <div>
-    <b>3) Record: </b>&emsp;
+    <b>4) Record and Sing: </b>&emsp;
     <button id="record" name="record" onClick={startRecording}>
       Start</button>&emsp; 
     <button id="stop" name="stop" onClick={controlRecording}>
@@ -392,10 +497,10 @@ https://stackoverflow.com/questions/52263471/how-to-create-a-mediastream-from-a-
     </div>
     <hr />
     <div>
-    <b>4) Playback: </b>&emsp;
+    <b>5) Playback: </b>&emsp;
     <button name="start" onClick={playback}>Start</button>&emsp; 
-    <button name="stop" onClick={playback}>Stop</button>&emsp;
-    <button name="recordMix" onClick={playback}>Rec</button><br/>
+    <button name="stop" onClick={playback}>Stop</button>&emsp;<br/>
+
       Delay&nbsp;&nbsp;:&emsp;
       <button name="subDelay" onClick={setMixer}>sub</button>
       &emsp; {karaokeDelay.toFixed(3)} &emsp;
@@ -410,15 +515,15 @@ https://stackoverflow.com/questions/52263471/how-to-create-a-mediastream-from-a-
       <button name="subMasterGain" onClick={setMixer}>sub</button>
       &emsp; {masterGain.toFixed(2)} &emsp;
       <button name="addMasterGain" onClick={setMixer}>add</button>
+     </div>
     </div>
-   </div>
     <hr/>
     <div>
-    <b>5) Export</b>&emsp;
+    <b>6) Export</b>&emsp;
     <button name="export" onClick={exportRecord}>
     Separate</button>&emsp; 
-    <button name="mix" onClick={exportMix}>
-    Recorded mix</button>
+    <button name="mix" onClick={exportRecord}>
+    Playback</button>
     </div>
     <hr />
     <div>
