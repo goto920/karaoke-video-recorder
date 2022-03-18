@@ -1,0 +1,626 @@
+// import logo from './logo.svg';
+import React, { useRef, useState } from 'react';
+import './App.css';
+import * as utils from './lib/mediaDeviceUtils.js';
+import { MixAudioInStreams } from './lib/MixAudioInStreams.js';
+import packageJSON from '../package.json';
+
+// const sleep = msec => new Promise(resolve => setTimeout(resolve, msec));
+
+//let constructorHasRun = false;
+
+function App() {
+
+  /* https://learnreact.in/stream-camera-output-to-a-video-element-in-react */
+  const videoRef = useRef();
+//  const audioRef = useRef();
+
+  const [constructorHasRun, setConstructorHasRun] = useState(false);
+  const [audioInputOptions, setAudioInputOptions] = useState([]);
+  const [autoGain, setAutoGain] = useState(false);
+  const [noiseSuppression, setNoiseSuppression] = useState(false);
+  const [echoCancellation, setEchoCancellation] = useState(false);
+  const [videoInputOptions, setVideoInputOptions] = useState([]);
+  const [audioOutputOptions, setAudioOutputOptions] = useState([]);
+  const [karaokeDelay, setKaraokeDelay] = useState(0.06); // sec
+  const [karaokeBalance, setKaraokeBalance] = useState(0.5); 
+  const [masterGain, setMasterGain] = useState(1.0);
+
+  const karaokeStream = new MediaStream();
+  const karaokeCaptureStream = new MediaStream();
+  const monitorStream = new MediaStream();
+  const recordStream = new MediaStream();
+  const ctx = new (window.AudioContext || window.webkitAudioContext) ();
+
+  const exportKaraoke = [];
+  const exportData = [];
+  const exportData2 = [];
+  const exportMix = [];
+  const karaokeSourceAudio = new Audio();
+  const karaokeAudio = new Audio();
+  const monitorAudio = new Audio();
+  const monitorVideo = videoRef.current;
+
+  const [state, setState] = useState({
+     micTrack: null,
+     karaokeFile: null,
+     recorder: null,
+     karaokeRecorder: null,
+     karaokeCaptureRecorder: null,
+     mixRecorder: null,
+     mixer: null,
+     exportBlob1: null,
+     exportBlob2: null,
+     exportBlobMix: null,
+  });
+
+  function constructor() { 
+
+    if (constructorHasRun) {
+      console.error("CONSTRUCTOR called again! return immediately");
+      return;
+    }
+
+    setConstructorHasRun(true);
+    console.log("CONSTRUCTOR");
+
+//  utils.showSupportedConstraints();
+
+    MediaDevices.ondevicechange = getListOfMediaDevices;
+
+    function getListOfMediaDevices() {
+
+       utils.getListOfMediaDevices(videoRef)
+       .then ((deviceList) => { 
+         console.log('Returned from getListOfMediaDevices');
+
+         let tmp = [];
+         deviceList.audioInputDevices.forEach(device => 
+           tmp.push({value: device.id, label: device.label})
+         );
+         setAudioInputOptions(tmp);
+
+         tmp = [];
+         deviceList.videoInputDevices.forEach(device => 
+           tmp.push({value: device.id, label: device.label})
+         );
+         setVideoInputOptions(tmp);
+
+         tmp = []; 
+         deviceList.audioOutputDevices.forEach(device => 
+           tmp.push({value: device.id, label: device.label})
+         );
+        setAudioOutputOptions(tmp);
+       
+       })
+       .catch (e => console.error(e));
+     }
+
+    getListOfMediaDevices();
+   
+   }; // constructor;
+
+
+  async function selectVocalInput(e){ 
+    if (e.target.value === 'none') return;
+
+    try {
+       const track = await utils.getMicTrack(e.target.value);
+       const newState = state;
+       newState.micTrack = track;
+       setState(newState);
+       recordStream.addTrack(track);
+       monitorStream.addTrack(track);
+    } catch (err) {console.error(err);}
+
+  }
+
+  async function selectAudioOutput(e){
+    console.log('Audio Output: ' + e.target.value);
+    if (e.target.value === 'none') return;
+    try {
+      karaokeAudio.setSinkId(e.target.value);
+    } catch (err) {console.error(err);}
+  }
+
+  async function selectVideoInput(e){
+    if (e.target.value === 'none') return;
+    try {
+       const track = await utils.getCameraTrack(e.target.value)
+       recordStream.addTrack(track);
+       monitorStream.addTrack(track);
+       monitorVideo.srcObject = monitorStream;
+    } catch (err) {console.error(err);}
+  }
+
+  async function karaokeCapture(e) {
+
+    if (e.target.name === 'start'){
+      const newState = state;
+      newState.karaokeCaptureRecorder 
+        = new MediaRecorder(karaokeCaptureStream, {
+        audioBitsPerSecond: 128000,
+        mimeType: 'audio/webm;codecs=opus'
+      });
+      setState(newState);
+      exportKaraoke.length = 0;
+      state.karaokeCaptureRecorder.ondataavailable = function (e){
+        exportKaraoke.push(e.data);
+      };
+      state.karaokeCaptureRecorder.onstop = function (e){
+        karaokeCaptureStream.getTracks().forEach ( track => {
+          track.stop(); karaokeCaptureStream.removeTrack(track);   
+        });
+      };
+
+      state.karaokeCaptureRecorder.start();
+      return;
+    }
+
+    if (e.target.name === 'stop'){
+      state.karaokeCaptureRecorder.stop();
+      monitorAudio.pause();
+      return;
+    }
+
+    if (e.target.name === 'playback'){
+      monitorAudio.src = URL.createObjectURL(exportKaraoke[0]); 
+      monitorAudio.play();
+      return;
+    }
+
+    if (e.target.name === 'export'){
+      const saveLink = document.createElement("a");
+      saveLink.href = URL.createObjectURL(exportKaraoke[0]);
+      saveLink.download = "captured-audio.webm";
+      document.body.appendChild(saveLink);
+      saveLink.click();
+      document.body.removeChild(saveLink);
+      return;
+    }
+
+    if (e.target.name === 'screen') {
+      const track = await utils.getAudioCaptureTrack();
+
+      if (track.langth > 0) {
+        karaokeCaptureStream.addTrack(track);
+        return;
+      }
+
+      alert ('Display audio is NOT available on this browser.' 
+             + 'Trying monitor of audio device.');
+
+      let deviceId = null;
+      let deviceLabel = null;
+      let found = null;
+
+      audioInputOptions.forEach((option) => {
+        found = option.label.match(/monitor/i);
+        if (found) {
+          deviceId = option.value;
+          deviceLabel = option.label;
+        }
+      });
+       
+      if (!found) {
+        alert ('Sorry desktop audio is NOT available for the browser.');
+      } else {
+        try {
+          alert ('Desktop audio unavailable. Trying... ' + deviceLabel);
+          const track = await utils.getMonitorTrack(deviceId);
+          karaokeCaptureStream.addTrack(track);
+        } catch (e) {
+          alert ('Sorry monitor and mic cannot be used at once on this browser.');
+        } // end catch
+      } // end if !found else 
+      return;
+    } // end if (screen)
+
+  } // End karaokeSource()
+
+/* (Ref)
+https://stackoverflow.com/questions/52263471/how-to-create-a-mediastream-from-a-uploaded-audio-file-or-a-audio-file-url-using
+*/
+  function loadFile(e) {
+    if (karaokeStream.getAudioTracks().length > 0) return;
+    const newState = state;
+    newState.karaokeFile = e.target.files[0];
+    setState(newState);
+  }
+
+  function setKaraokeSource(e){
+
+    if (karaokeStream.getAudioTracks().length > 0) return;
+
+    if (e.target.name === 'file'){ 
+      try { 
+        karaokeSourceAudio.src = URL.createObjectURL(state.karaokeFile);
+        const track = utils.audioToMediaStreamTrack(ctx, karaokeSourceAudio);
+        // console.log('track', track);
+        karaokeStream.addTrack(track);
+        karaokeAudio.srcObject = karaokeStream;
+      } catch (e) {console.error(e);}
+    }
+
+  }
+ 
+  function startRecording(e){
+
+    const videoOptions = {
+      audioBitsPerSecond: 128000,
+      // videoBitsPerSecond: 128000,
+      mimeType: 'video/webm'
+    };
+
+    const audioOptions = {
+      audioBitsPerSecond: 128000,
+      mimeType: 'audio/webm;codecs=opus'
+    };
+
+    setKaraokeSource();
+
+    try {
+      console.log('Recording tracks: ');
+      console.log(recordStream.getTracks());
+
+      const newState = state;
+      newState.recorder = new MediaRecorder(recordStream, videoOptions);
+      setState(newState);
+
+      if (recordStream.active) {
+         exportData.length = 0;
+         state.recorder.start();
+      }  else console.error('recordStream inactive');
+
+      state.recorder.ondataavailable = function (e) { exportData.push(e.data); }
+      state.recorder.onstop = function(e) {
+        console.log('recorder stopped: ' 
+          + exportData.length + ' clips');
+        const newState = state;
+        newState.exportBlob1 = new Blob(exportData,{type: exportData[0].type});
+        setState(newState);
+      }
+      state.recorder.onpause = function(e) {
+        console.log('recorder paused');
+      }
+      state.recorder.onresume = function(e) {
+        console.log('recorder resumed');
+      }
+
+    } catch (err) {console.error('recorder: ' + err);}
+
+    try {
+      console.log('Karaoke track: ');
+      console.log(karaokeStream.getTracks());
+      const newState = state;
+      newState.karaokeRecorder = new MediaRecorder(karaokeStream, audioOptions);
+      setState(newState);
+
+      if (karaokeStream.active) {
+         exportData2.length = 0;
+         state.karaokeRecorder.start(); 
+         karaokeSourceAudio.play(); 
+         karaokeAudio.play();
+      }  else console.error('karaokeStream inactive');
+
+      state.karaokeRecorder.ondataavailable = function (e) {exportData2.push(e.data);}
+      state.karaokeRecorder.onstop = function(e) {
+        console.log('karaokeRecorder stopped: ' 
+            +  exportData2.length + ' clips');
+        karaokeAudio.pause();
+        karaokeStream.getTracks().forEach (track => {
+          track.stop();
+          karaokeStream.removeTrack(track);
+        });
+        const newState = state;
+        newState.exportBlob2 
+           = new Blob(exportData2,{type: exportData2[0].type});
+        setState(newState);
+       
+      }
+      state.karaokeRecorder.onpause = function(e) {
+      }
+      state.karaokeRecorder.onresume = function(e) {
+      }
+
+    } catch (err) {console.error('karaokeRecorder: ' + err);}
+
+  }
+
+  function controlRecording(e){ 
+    const op = e.target.name; 
+
+    const recorders = [state.recorder, state.karaokeRecorder];
+    recorders.forEach( r => {
+      if(!r) return;
+      if (op === 'stop') {
+        r.stop(); 
+      } else {
+        if(r.state === 'recording') r.pause(); 
+        else if(r.state === 'paused') r.resume(); 
+      }
+    });
+  }
+
+  function playback(e){
+
+    if (e.target.name === "stop"){
+      state.mixer.close();
+      state.mixer = null;
+      state.mixRecorder.stop();
+      /* for next Recording */
+      monitorVideo.srcObject = monitorStream;
+      monitorVideo.volume = 0;
+      monitorVideo.autoplay = true;
+      return;
+    }
+
+    const newState = state;
+    newState.mixer = new MixAudioInStreams(ctx,
+       state.exportBlob1, state.exportBlob2,
+       karaokeDelay, karaokeBalance, masterGain);
+    setState(newState);
+
+    state.mixer.stream.addEventListener('playback',playNow);
+
+    function playNow(){
+      const mixer = state.mixer;
+      console.log ('playNow()', mixer.stream.getTracks());
+      monitorVideo.pause();
+      monitorVideo.srcObject = mixer.stream; 
+      recordMix(mixer.stream);
+      monitorVideo.load(); 
+      monitorVideo.currentTime = 0;
+      monitorVideo.muted = false;
+      monitorVideo.volume = 1.0;
+      monitorVideo.autoplay = false;
+      monitorVideo.play();
+    } // playNow()
+
+    function recordMix(stream){
+
+      const options = {
+        audioBitsPerSecond: 128000,
+        mimeType: 'video/webm'
+      };
+
+      exportMix.length = 0;
+      const newState = state;
+      newState.mixRecorder = new MediaRecorder(stream,options);
+        setState(newState);
+      state.mixRecorder.start();
+
+      state.mixRecorder.ondataavailable 
+        = function (e) {exportMix.push(e.data); }
+
+      state.mixRecorder.onstop = function(e) {
+        const newState = state;
+        newState.exportBlobMix = new Blob(exportMix, {type: exportMix[0].type});
+        setState(newState);
+      } // onstop
+
+    } // recordMix()
+
+  } // end playback
+
+  function exportRecord(e){ 
+
+    if (e.target.name === 'export') {
+      try {
+        const saveLink = document.createElement("a");
+        saveLink.href = URL.createObjectURL(state.exportBlob1);
+        saveLink.download = "video-export.webm";
+        document.body.appendChild(saveLink);
+        saveLink.click();
+        document.body.removeChild(saveLink);
+
+        const saveLink2 = document.createElement("a");
+        saveLink2.href = URL.createObjectURL(state.exportBlob2);
+        saveLink2.download = "audio-export.webm";
+        document.body.appendChild(saveLink2);
+        saveLink2.click();
+        document.body.removeChild(saveLink2);
+      }  catch(e){console.log('exportRecord: ' + e)}
+
+      return;
+   }
+ 
+   if (e.target.name === 'mix'){
+      const saveLink = document.createElement("a");
+      saveLink.href = URL.createObjectURL(state.exportBlobMix);
+      saveLink.download = "mixVideo-export.webm";
+      document.body.appendChild(saveLink);
+        saveLink.click();
+        document.body.removeChild(saveLink);
+      return;
+    }
+
+  } 
+
+/* Main flow */
+  if(!constructorHasRun) constructor();
+
+  return (
+    <div className="App">
+    <h2>KG's Karaoke Video Recorder</h2>
+    <hr/>
+    <div>
+    <b>(option) Record karaoke: &emsp;</b>
+    <button name="screen" onClick={karaokeCapture}>Screen/window/tab</button>
+    <br/>
+    <button name="start" onClick={karaokeCapture}>Start</button>&emsp;
+    <button name="stop" onClick={karaokeCapture}>Stop</button>&emsp;
+    <button name="playback" onClick={karaokeCapture}>Playback</button>&emsp;
+    <button name="export" onClick={karaokeCapture}>Export</button>
+    </div>
+    <hr/>
+    <div>
+    <b>1) Mic and Camera Input: </b> &emsp;
+    <br/>
+    Mic: <select name="vocalInput" onChange={selectVocalInput}>
+    <option key="none" value="none" label="Not Selected">none</option>
+    {audioInputOptions.map((option) =>
+      <option key={option.value} value={option.value} >
+      {option.label}</option>)}
+    </select> &emsp; <br/>
+   -- options: &emsp;
+   <button name="autoGain"
+     style={{backgroundColor: autoGain ? '#55ff55' : '#eeeeee' }}
+     onClick={setAudioTrackProperty}>
+     auto</button>&emsp;
+   <button name="noiseSuppression"
+     style={{backgroundColor: noiseSuppression ? '#55ff55' : '#eeeeee' }}
+     onClick={setAudioTrackProperty}>
+     noise</button>&emsp;
+   <button name="echoCancellation"
+     style={{backgroundColor: echoCancellation ? '#55ff55' : '#eeeeee' }}
+     onClick={setAudioTrackProperty}>
+     echo</button><br/>
+    Camera: <select name="videoInput" onChange={selectVideoInput}>
+    <option key="none" value="none" label="Not Selected">none</option>
+    {videoInputOptions.map((option) =>
+      <option key={option.value} value={option.value} >
+      {option.label}</option>)}
+    </select> &emsp; <br/>
+    -- facing: &emsp;
+    <select>
+    <option>user</option>
+    <option>env</option>
+    </select>
+    </div><hr/> 
+    <div>
+     <b>2) Audio output: </b>&emsp;
+     <select name="audioOutput" onChange={selectAudioOutput}>
+      <option key="none" value="none" label="default">none</option>
+     {audioOutputOptions.map((option) =>
+      <option key={option.value} value={option.value} >
+      {option.label}</option>)}
+     </select>
+    </div>
+    <hr/>
+    <div>
+     <b>3) Karaoke audio file: </b>&emsp; 
+          <input type="file" name="inputFile" 
+          accept="audio/*" onChange={loadFile}/> <br/>
+    </div>
+    <hr/>
+    <div>
+    <b>4) Record and Sing: </b>&emsp;
+    <button id="record" name="record" onClick={startRecording}>
+      Start</button>&emsp; 
+    <button id="stop" name="stop" onClick={controlRecording}>
+      Stop</button><br/>
+    <hr/>
+   <div>
+     <video ref={videoRef} width="360" autoPlay playsInline muted 
+       style={{width: '100%'}} />
+{/*
+    <br/>
+     Karaoke audio<br/>
+       <audio ref={audioRef} controls autoPlay style={{width: '100%'}} /><br/>
+*/}
+    </div>
+    <hr />
+    <div>
+    <b>5) Playback: </b>&emsp;
+    <button name="start" onClick={playback}>Start</button>&emsp; 
+    <button name="stop" onClick={playback}>Stop</button>&emsp;<br/>
+
+      Delay&nbsp;&nbsp;:&emsp;
+      <button name="subDelay" onClick={setMixer}>sub</button>
+      &emsp; {karaokeDelay.toFixed(3)} &emsp;
+      <button name="addDelay" onClick={setMixer}>add</button><br/>
+
+      Balance:&emsp;
+      <button name="subKaraokeBalance" onClick={setMixer}>sub</button>
+      &emsp; {karaokeBalance.toFixed(2)} &emsp;
+      <button name="addKaraokeBalance" onClick={setMixer}>add</button><br/>
+
+      Master&nbsp;&nbsp;:&emsp;
+      <button name="subMasterGain" onClick={setMixer}>sub</button>
+      &emsp; {masterGain.toFixed(2)} &emsp;
+      <button name="addMasterGain" onClick={setMixer}>add</button>
+     </div>
+    </div>
+    <hr/>
+    <div>
+    <b>6) Export</b>&emsp;
+    <button name="export" onClick={exportRecord}>
+    Separate</button>&emsp; 
+    <button name="mix" onClick={exportRecord}>
+    Playback</button>
+    </div>
+    <hr />
+    <div>
+    Version: {packageJSON.version} &emsp; 
+    <a href="./guide/index.html" target="_blank" 
+         rel="noreferrer">Brief Guide</a>
+    <a href="https://goto920.github.io/demos/karaoke-video-recorder/" 
+     target="_blank" rel="noreferrer"><br/>
+    Manual/Update</a>&nbsp;on goto920.github.io<hr/>
+    </div>
+    </div>
+  );
+
+  function setMixer(e) {
+    const mixer = state.mixer; 
+
+    if (e.target.name === "addDelay" || e.target.name === "subDelay"){
+      let tmp = karaokeDelay;
+      if (e.target.name === "subDelay") 
+          tmp -= 0.005; else tmp += 0.005;
+
+      tmp = Math.max(tmp,0); 
+      setKaraokeDelay(tmp)
+      if(mixer) mixer.setKaraokeDelay(tmp);
+      return;
+    }
+
+    if (e.target.name === "addKaraokeBalance" 
+      || e.target.name === "subKaraokeBalance"){
+      let tmp = karaokeBalance;
+      if (e.target.name === "subKaraokeBalance") tmp -= 0.05; 
+        else tmp += 0.05;
+
+      tmp = Math.min(Math.max(tmp,0),1.0); 
+
+      setKaraokeBalance(tmp);
+      if(mixer) mixer.setBalance(tmp);
+      return;
+    }
+
+    if (e.target.name === "addMasterGain" || e.target.name === "subMasterGain"){
+      let tmp = masterGain;
+      if (e.target.name === "subMasterGain") 
+        tmp -= 0.05; else tmp += 0.05;
+      tmp = Math.max(tmp,0); 
+
+      setMasterGain(tmp);
+      if(mixer) mixer.setMasterGain(tmp);
+      return;
+    }
+    
+  } // end setMixer() 
+
+  function setAudioTrackProperty(e){
+    if (state.micTrack === null) return;
+
+    if (e.target.name === 'autoGain'){ 
+      setAutoGain(!autoGain); 
+      utils.setAudioTrackProperty(state.micTrack, 'autoGainControl', autoGain);
+    } 
+    if (e.target.name === 'noiseSuppression'){ 
+      setNoiseSuppression(!noiseSuppression); 
+      utils.setAudioTrackProperty(state.micTrack, 'noiseSuppression', 
+      noiseSuppression);
+    } 
+    if (e.target.name === 'echoCancellation'){ 
+      setEchoCancellation(!echoCancellation); 
+      utils.setAudioTrackProperty(state.micTrack, 'echoCancellation', 
+      echoCancellation); 
+    } 
+  }
+
+} // end App()
+
+export default App;

@@ -1,0 +1,102 @@
+const sleep = msec => new Promise(resolve => setTimeout(resolve, msec));
+
+export default class MixBlobsToStream {
+
+   constructor(ctx, videoBlob, audioBlob, initialDelay, initialBalance){
+    
+     // parameters
+     this.ctx = ctx;
+     this.videoBlob = videoBlob;
+     this.audioBlob = audioBlob;
+     this.delay = initialDelay;
+     this.balance = initialBalance; 
+
+     // instance variables
+     this.vocal = undefined;
+     this.karaoke = undefined;
+     this.delayNode = undefined;
+     this.gainNode1 = undefined;
+     this.gainNode2 = undefined;
+     this.outputStream = undefined;
+
+     // functions
+     this.init = this.init.bind(this);
+     this.decodeBlob = this.decodeBlob.bind(this);
+     this.close = this.close.bind(this);
+     this.start = this.start.bind(this);
+
+     this.setKaraokeDelay = this.setKaraokeDelay.bind(this);
+     this.setBalance = this.setBalance.bind(this);
+     this.getOutputStream = this.getOutputStream.bind(this);
+
+     this.init();
+   }
+
+   close(){
+   }
+
+   async decodeBlob(blob){
+     const reader = new FileReader();
+
+     let retval = undefined;
+     reader.onload = async (e) => {
+       retval = await this.ctx.decodeAudioData(reader.result);
+     }
+
+     reader.onerror = (e) {console.error(e);}
+
+     reader.readAsArrayBuffer(blob);
+
+     while(retval === undefined) await sleep(1000);
+     return retval;
+
+   }
+
+   init(){
+
+     this.outputStream = new MediaStream();
+
+     const vocal = this.ctx.createBufferSource();
+     vocal.buffer = await decodeBlob(this.videoBlob);
+
+     const karaoke = this.ctx.createBufferSource();
+     karaoke.buffer = await decodeBlob(this.karaokeBlob);
+
+     this.gainNode1 = new GainNode(this.ctx, {gain: this.balance});
+     this.gainNode2 = new GainNode(this.ctx, {gain: 1 - this.balance});
+     this.delayNode = new DelayNode(this.ctx, {delayTime: this.delay});
+
+     const dest = this.ctx.createMediaStreamDestination();
+
+     vocal.connect(this.gainNode1);
+     this.gainNode1.connect(dest);
+
+     karaoke.connect(this.delayNode);
+     this.delayNode.connect(this.gainNode2);
+     this.gainNode2.connect(dest);
+
+     this.outputStream.addTrack(videoStream.getVideoTracks()[0]);
+     this.outputStream.addTrack(dest.stream.getAudioTracks()[0]);
+//    } // end oncanplay
+
+  } // end init()
+
+  getOutputStream() {return this.outputStream;}
+
+  start() {this.vocal.start(); this.karaoke.start();}
+
+  setKaraokeDelay(msec){
+    try {
+      this.delayNode.delayTime.value = msec/1000; // set in sec
+    } catch(e) {console.error(e)}
+  }
+
+  setBalance(vocalVol) { /* 0.0 to 1.0 */
+   try {
+     this.balance = vocalVol;
+     this.gainNode1.gain.value = this.balance;
+     this.gainNode2.gain.value = (1 - this.balance);
+    } catch(e) {console.error(e);}
+  }
+
+};

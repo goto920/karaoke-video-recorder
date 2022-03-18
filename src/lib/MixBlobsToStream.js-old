@@ -1,4 +1,4 @@
-export class MixAudioInStreams {
+export default class MixBlobsToStream {
 
    constructor(ctx, videoBlob, audioBlob, delay, balance, master){
      

@@ -2,7 +2,23 @@
 /*  text-align: center; */
   text-align: left;
   line-height: 2.0;
-  max-width: 375px;
+  max-width: 720px;
   margin: 0 auto;
   padding: 30px;
+}
+
+.button {
+  font-size: 100%;
+  width: 100px;
+  padding: 10px;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.smallButton {
+  font-size: 90%;
+  width: 70px;
+  padding: 5px;
+  box-sizing: border-box;
+  cursor: pointer;
 }
