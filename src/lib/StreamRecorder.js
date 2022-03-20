@@ -19,7 +19,6 @@ export default class StreamRecorder {
     this.recorder = new MediaRecorder(stream, options);
 
     this.recorder.onstop = (e) => { 
-
       this.exportBlob = new Blob(chunks, {type: chunks[0].type});
     };
 
@@ -40,6 +39,7 @@ export default class StreamRecorder {
     this.recorder.stop(); 
     while (this.exportBlob === null) await sleep(1000);
     this.recording = false;
+    return this.exportBlob;
   } 
 
   getBlob() { return this.exportBlob; }

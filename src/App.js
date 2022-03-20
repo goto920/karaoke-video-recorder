@@ -18,6 +18,8 @@ import CaptureAudioModal from './modal/CaptureAudioModal.js';
 
 // https://stackoverflow.com/questions/44360301/web-audio-api-creating-a-peak-meter-with-analysernode
 
+const showExperimental = true;  // for hiding unimplemented controls
+
 asyncModal.setDefaultModalProps({
   showCloseIcon: false,
   style: {
@@ -43,14 +45,11 @@ const avSettings = {
 };
 
 const monitorStream = new MediaStream();
-const karaokeStream = new MediaStream();
 let gainAndMeter = undefined;
 const captureStream = new MediaStream();
-const karaokeSourceAudio = new Audio();
 const karaokePlayerAudio = new Audio();
 const ctx = new (window.AudioContext || window.webkitAudioContext) ();
 
-const showPlaybackButtons = false; 
 
 let monitorRecorder = null;
 let monitorBlob = null;
@@ -59,9 +58,7 @@ let captureBlob = null;
 let mixBlob = null;
 let mixer = undefined;
 let mixerRecorder = undefined;
-let karaokeRecorder = null;
-let karaokeBlob = null;
-let meterPeakGlobal = -100;
+let meterPeakGlobal = -60;
 let captureDeviceId = undefined;
 
 /* // default
@@ -93,7 +90,9 @@ function App() {
   const [meterPeak, setMeterPeak] = useState(meterPeakGlobal); 
   const [monitorVolume, setMonitorVolume] = useState(0); // 0 to 1
   const [karaokeVolume, setKaraokeVolume] = useState(0.5); // 0 to 1
-  const [delay, setDelay] = useState(80); // msec
+  const [mixVocalGain, setMixVocalGain] = useState(0); // dB
+  const [mixKaraokeGain, setMixKaraokeGain] = useState(0); // dB
+  const [mixKaraokeDelay, setMixKaraokeDelay] = useState(120); // msec
   const [balance, setbalance] = useState(0.5); // 0 to 1
 
   const [recordDisabled, setRecordDisabled] = useState(true);
@@ -119,7 +118,7 @@ function App() {
 
   const getMediaDeviceList = async () => {
     const list = await mediaUtils.getMediaDeviceList(mediaDeviceList);
-    // console.log('list',list);
+    // console.log('getMediaDeviceList()',list);
     mediaDeviceList.audioInputDevices = list.audioInputDevices;
     mediaDeviceList.videoInputDevices = list.videoInputDevices;
     mediaDeviceList.audioOutputDevices = list.audioOutputDevices;
@@ -187,8 +186,12 @@ function App() {
 
     if (command === 'audioOutput'){ 
       avSettings.audioOutput = value;
-      videoRef.current.volume = monitorVolume;
-      return;
+
+      try { 
+        await videoRef.current.setSinkId(value.deviceId);
+        await karaokePlayerAudio.setSinkId(value.deviceId);
+        return;
+      } catch (err) {console.error(err);}
     }
 
     if (command === 'loadFile'){ 
@@ -229,23 +232,14 @@ function App() {
 
     if (isRecording) {
       console.log('stop recording');
-      karaokePlayerAudio.pause();
+        karaokePlayerAudio.pause();
 
       if (monitorRecorder) {
-        await monitorRecorder.stop();
-        monitorBlob = monitorRecorder.getBlob();
+        monitorBlob = await monitorRecorder.stop();
         console.log('monitorBlob', monitorBlob);
       }
 
-      if (karaokeRecorder) {
-        karaokeSourceAudio.pause();
-        await karaokeRecorder.stop();
-        karaokeBlob = karaokeRecorder.getBlob();
-        karaokeRecorder.clearStream();
-        console.log('karaokeBlob', karaokeBlob);
-      }
-
-      if (monitorBlob !== null || karaokeBlob !== null)
+      if (monitorBlob !== null)
          setExportDisabled(false);
 
       setIsRecording(false);
@@ -258,81 +252,65 @@ function App() {
 
  // prepare stream
 
+/*
     karaokeStream.getTracks().forEach ( track => {
         karaokeStream.removeTrack(track);
         track.stop();
     });
-
-   if (avSettings.karaokeFile !== undefined) {
-     karaokeSourceAudio.pause(); // no GUI
-     karaokeSourceAudio.src = URL.createObjectURL(avSettings.karaokeFile);
-     karaokeStream.addTrack(
-        mediaUtils.audioToMediaStreamTrack(ctx,karaokeSourceAudio));
-   }
+*/
 
 // set players
-    karaokePlayerAudio.srcObject = karaokeStream;
-    karaokePlayerAudio.volume = karaokeVolume;
+   if (avSettings.karaokeFile !== undefined) {
+     karaokePlayerAudio.pause(); // no GUI
+     karaokePlayerAudio.src = URL.createObjectURL(avSettings.karaokeFile);
+     karaokePlayerAudio.volume = karaokeVolume;
+   }
 
 // check number of tracks in the streams
     const numMonitorTracks = monitorStream.getTracks().length;
-    const numKaraokeTracks = karaokeStream.getTracks().length;
 
-    if (numMonitorTracks === 0 && numKaraokeTracks === 0) {
+    if (numMonitorTracks === 0) {
       console.log('No tracks to record');
       return;
     }
 
 // set recorders   
     monitorRecorder = null;
-    karaokeRecorder = null; 
-    monitorBlob = null; karaokeBlob = null;
+    monitorBlob = null; 
 
     if (numMonitorTracks > 0) {
       monitorRecorder = new StreamRecorder(monitorStream);
       monitorRecorder.start();
     }
-
-    if (numKaraokeTracks > 0) {
-      karaokeRecorder = new StreamRecorder(karaokeStream);
-      karaokeSourceAudio.play();
-      karaokePlayerAudio.play();
-      karaokeRecorder.start(); 
-    }
+    karaokePlayerAudio.play();
 
     setIsRecording(true);
     return;
   };
 
-  const playback = (event) => {
+  const playback = async (event) => {
     if (isRecording) return;
 
     if (isPlaying) {
       console.log('stop playback mix');
       mixer.stop();
-       /*
-       mixerRecorder.stop()
-       while (mixBlob === null){
-         await sleep(1000);
-         mixBlob = mixerRecorder.getBlob();
-       }
-      */
+      // mixBlob = await mixerRecorder.stop()
       setIsPlaying(false);
     } else {
       console.log('start playback mix');
-      mixer = new MixBlobsToStream(ctx,monitorBlob,karaokeBlob,delay,balance);
-      const stream = mixer.getOutputStream();
+      mixer = new MixBlobsToStream(ctx,monitorBlob, avSettings.karaokeFile,
+         mixKaraokeDelay, mixVocalGain,mixKaraokeGain);
+      const stream = await mixer.getOutputStream();
 
       /* 
        mixerRecorder = new StreamRecorder(stream);
        mixerRecorder.start();
       */
-
       videoRef.current.pause(); 
       videoRef.current.srcObject = stream;
       videoRef.current.volume = 1.0;
       videoRef.current.play();
-      mixer.start();
+      setMonitorVolume(1.0); 
 
       setIsPlaying(true);
     }
@@ -343,8 +321,7 @@ function App() {
 
     const seconds = Math.floor(Date.now()/1000);
     exportRecordedBlob(monitorBlob, 'monitor_' + seconds);
-    exportRecordedBlob(karaokeBlob, 'karaoke_' + seconds);
-    exportRecordedBlob(mixBlob, 'mix_' + seconds);
+    // exportRecordedBlob(mixBlob, 'mix_' + seconds);
 
   };
 
@@ -378,28 +355,25 @@ function App() {
   const handleScreenCapture = async (event) => {
 
     if (event.target.name === 'set'){
-
       monitorStream.getTracks().forEach(track => track.stop());
-
       try {
-        // await getMediaDeviceList();
-        captureStream.addTrack(
-           await mediaUtils.getScreenCaptureAudioTrack()); 
-      } catch(err) {
+        const track = await mediaUtils.getScreenCaptureAudioTrack(); 
+        if (track !== null) { captureStream.addTrack(track); return;}
+
         console.log('trying monitor audio');
-        try {
-          await asyncModal(CaptureAudioModal, { 
-            mediaDeviceList: mediaDeviceList,
-            setCaptureDevice : setCaptureDevice // callback function
-          });
+        await asyncModal(CaptureAudioModal, { 
+          mediaDeviceList: mediaDeviceList,
+          setCaptureDevice : setCaptureDevice // callback function
+        });
 
-          if (captureDeviceId) {
-            const track = await mediaUtils.getMonitorTrack(captureDeviceId);
-            captureStream.addTrack(track);
-          }
+        if (captureDeviceId) {
+          const track = await mediaUtils.getMonitorTrack(captureDeviceId);
+          captureStream.addTrack(track);
+          captureRecorder = new StreamRecorder(captureStream); 
+          return;
+        }
 
-        } catch (err) {console.error(err)}
-      } // catch
+      } catch (err) {console.error(err)}
  
       return;
     } // set
@@ -407,33 +381,26 @@ function App() {
     if (event.target.name === 'record'){
       if (!isCapturing) {
         console.log('record capture start');
+        try {
+          captureRecorder.start(); 
+          setIsCapturing(true); return;
+        } catch(err) {console.log(err);}
 
-        if (captureStream.getAudioTracks().length > 0) {
-          try {
-            captureRecorder = new StreamRecorder(captureStream); 
-            captureRecorder.start(); 
-            setIsCapturing(true);
-            return;
-          } catch(err) {console.log(err);}
-        }
-
+        return; 
       } else {
 
         console.log('record capture stop');
+
         if (captureRecorder !== null) {
-          captureRecorder.stop();
-          while (captureBlob === null){
-            console.log('trying to get captureBlob');
-            await sleep(1000);
-            captureBlob = captureRecorder.getBlob();
-          }
-          captureRecorder.clearStream();
+          captureBlob = await captureRecorder.stop();
           console.log('captureBlob', captureBlob);
+          captureRecorder.clearStream();
         }
 
         setIsCapturing(false);
         return;
       } // isCapturing
+
     } // record
 
     if (event.target.name === 'export' && !isCapturing){
@@ -447,15 +414,54 @@ function App() {
     
   }; // handleScreenCapture 
 
+  const handleMixerSettings = (e) => {
+    // console.log(e.target.name);
+
+    const name = e.target.name;
+    const vg = mixVocalGain;
+    const kg = mixKaraokeGain;
+    const delay = mixKaraokeDelay;
+
+    switch (name) {
+     case 'vocalSub':
+       setMixVocalGain(vg - 1);
+       if(mixer) mixer.setVocalGain(vg - 1);
+     break;
+     case 'vocalAdd':
+       setMixVocalGain(vg + 1);
+       if(mixer) mixer.setVocalGain(vg + 1);
+     break;
+     case 'karaokeSub':
+       setMixKaraokeGain(kg - 1);
+       if(mixer) mixer.setKaraokeGain(kg - 1);
+     break;
+     case 'karaokeAdd':
+       setMixKaraokeGain(kg + 1);
+       if(mixer) mixer.setKaraokeGain(kg + 1);
+     break;
+     case 'karaokeDelaySub':
+       setMixKaraokeDelay(delay - 1);
+       if(mixer) mixer.setKaraokeDelay(delay - 1);
+     break;
+     case 'karaokeDelayAdd':
+       setMixKaraokeDelay(mixKaraokeDelay + 1);
+       if(mixer) mixer.setKaraokeDelay(delay + 1);
+     break;
+     default:
+     break;
+    }
+
+  }
+
   if (!isInitialized) constructor();
 
   return (
     <div className="App">
     <h2>KG's Karaoke Video Recorder</h2>
     (Need karaoke file?) Screen Audio Capture: &emsp; 
-    <button name="set" className="smallButton"
+    <button name="set" className="smallButton" 
       onClick={handleScreenCapture}>Set</button> &emsp;
-    <button name="record" className="smallButton"
+    <button name="record" className="smallButton" 
       onClick={handleScreenCapture}
        style={{backgroundColor: isCapturing ? '#55ff55' : '#eeeeee' }} >
     {isCapturing ? 'Stop' : 'Record'}</button> &emsp;
@@ -477,41 +483,63 @@ function App() {
        onClick={exportFiles}>Export</button>
     &emsp;
     </span>
- { showPlaybackButtons === true &&
+ { showExperimental === true &&
    <span>
     4) <button className="button" disabled={exportDisabled}
        name="playback" onClick={playback}
        style={{backgroundColor: isPlaying ? '#55ff55' : '#eeeeee' }} >
       {isPlaying ? 'Stop' : 'Play mix'}</button>
-    &emsp; 
-    <button className="button" name="exportMix" disabled={exportMixDisabled}
-       onClick={exportFiles}>Expt. mix</button>
    </span>
  }
     <hr/>
     <div>
-     MicGain: &emsp;<input type='range' name='micGain'
-         min='-24' max='24' step='1'
+     MicGain(dB): &emsp;<input type='range' name='micGain'
+         min={-24} max={24} step={1}
          value ={micGain} onChange = {handleMicGain} /> 
-       &nbsp;{ micGain > 0 ? 
-          "+" + ('000' + Math.abs(micGain)).slice(-3)
-          : "-" + ('000' + Math.abs(micGain)).slice(-3) } (dB) 
-     &emsp;
-     &emsp; <button onClick={(e) => meterPeakGlobal = -100}>Reset</button>
-     &emsp;
-     <meter ref={peakMeter} min='-100' high='-3' max='10' value={meterValue}
-     style={{width: '20%'}}></meter>&nbsp; {meterPeak.toFixed(1)} (Peak dB)
+       &nbsp;{ micGain >= 0 ? 
+          "+" + ('000' + Math.abs(micGain)).slice(-2)
+          : "-" + ('000' + Math.abs(micGain)).slice(-2) },
+     &nbsp; <button onClick={(e) => meterPeakGlobal = -60}>Reset</button>
+     &nbsp;-36&nbsp;
+     <meter ref={peakMeter} min={-36} high={-3} max={10} value={meterValue}
+     style={{width: '20%'}}></meter>&nbsp;10, Peak {meterPeak.toFixed(1)}
      <br/>
      Monitor: &emsp;<input type='range' name='monitorVolume'
-         min='0.0' max='1.0' step='0.01'
+         min={0} max={1} step={0.01}
          value ={monitorVolume} onChange = {handleVolume} /> 
        &nbsp;{monitorVolume.toFixed(2)}
      &emsp;&emsp;
      Karaoke: &emsp;<input type='range' name='karaokeVolume'
-        min='0.0' max='1.0' step='0.01'
+        min={0} max={1} step={0.01}
        value ={karaokeVolume} onChange = {handleVolume} /> 
        &nbsp;{karaokeVolume.toFixed(2)}<br/>
     <hr/>
+ { showExperimental === true && 
+   <div>
+     Mix:&emsp;
+     Vocal:&nbsp;
+     <span>
+     <button name="vocalSub" className="tinyButton"
+      onClick={handleMixerSettings} >-</button>
+     &nbsp;{mixVocalGain}&nbsp;,
+     <button name="vocalAdd" className="tinyButton"
+      onClick={handleMixerSettings} >+</button>&nbsp;|
+     Karaoke:&nbsp;
+     <button name="karaokeSub" className="tinyButton"
+      onClick={handleMixerSettings} >-</button>
+     &nbsp;{mixKaraokeGain}&nbsp;
+     <button name="karaokeAdd" className="tinyButton"
+      onClick={handleMixerSettings} >+</button>&nbsp;|
+     KaraokeDelay:&nbsp;
+     <button name="karaokeDelaySub" className="tinyButton"
+      onClick={handleMixerSettings} >-</button>
+     &nbsp;{mixKaraokeDelay} msec&nbsp;
+     <button name="karaokeDelayAdd" className="tinyButton"
+      onClick={handleMixerSettings} >+</button>
+    </span>
+    <hr/>
+    </div>
+}
       <video ref={videoRef} autoPlay 
        playsInline style={{width: '100%'}} />
     </div>
@@ -520,10 +548,12 @@ function App() {
 
     <div>
     Version: {packageJSON.version} &emsp; 
+{/*
     <a href="./guide/index.html" target="_blank" 
          rel="noreferrer">Brief Guide</a>
+*/}
     <a href="https://goto920.github.io/demos/karaoke-video-recorder/" 
-     target="_blank" rel="noreferrer"><br/>
+     target="_blank" rel="noreferrer">
     Manual/Update</a>&nbsp;on goto920.github.io<hr/>
     </div>
 

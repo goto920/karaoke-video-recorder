@@ -81,7 +81,7 @@ export async function getScreenCaptureAudioTrack(){
 
   try {
     stream = await navigator.mediaDevices.getDisplayMedia(constraints);
-
+    console.log('capture stream', stream);
     const videoTracks = stream.getVideoTracks();
     videoTracks.forEach((track) => track.stop());
     let audioTracks = stream.getAudioTracks();

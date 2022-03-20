@@ -3,12 +3,11 @@ import React, {useCallback, useState} from 'react';
 export default function AvSettingModal(props) {
   // read only
 
-  const current = props.mediaDeviceList;
+  const [current,setCurrent] = useState(props.mediaDeviceList);
   const currentAv = props.avSettings;
   const setMediaDevice = props.setMediaDevice; // callback
 
   // states
-//  const [isInitialized, setIsInitialized] = useState(false);
   const [audioInput, setAudioInput] 
     = useState(currentAv.audioInput ? 
         currentAv.audioInput.deviceId.exact : 'none');
@@ -24,10 +23,9 @@ export default function AvSettingModal(props) {
     = useState(currentAv.noiseSuppression);
   const [echoCancellation, setEchoCancellation] 
     = useState(currentAv.echoCancellation);
-/*
-  const [audioInputGain, setAudioInputGain] 
-    = useState(currentAv.audioInputGain);
-*/
+  const karaokeFile 
+    = currentAv.karaokeFile ? currentAv.karaokeFile.name : 'none';
+
 
   const handleSelect = useCallback(async (event) => {
     const {name, value} = event.target;
@@ -48,9 +46,15 @@ export default function AvSettingModal(props) {
 
     if (name === 'videoInput') {
       console.log('videoInput', value);
+      let [deviceId,facingMode] = value.split('#');
+      console.log('deviceId, facingMode', deviceId, facingMode);
+      if (facingMode) facingMode = '{exact: ' + facingMode + '}';
+
       const videoConstraints = {
-        deviceId: {exact: value},
-        width: {ideal: 1920}, height: {ideal: 1080}};
+        deviceId: {exact: deviceId},
+        facingMode: facingMode,
+        width: {ideal: 1920}, height: {ideal: 1080}
+      };
       setMediaDevice('videoinput',videoConstraints);
       setVideoInput(value);
       return;
@@ -59,7 +63,7 @@ export default function AvSettingModal(props) {
     if (name === 'audioOutput') {
       console.log('audioOutput', value);
       const fakeConstraints = {deviceId: value};
-      setMediaDevice('audiooutput', fakeConstraints);
+      setMediaDevice('audioOutput', fakeConstraints);
       setAudioOutput(value);
       return;
     }
@@ -113,9 +117,12 @@ export default function AvSettingModal(props) {
        <b>VideoInput:</b> &emsp;
        <select name="videoInput" 
           value={videoInput} onChange={handleSelect}>
-       <option key='-1' value='none' >None</option>)}
+       <option key={-1} value='none' >None</option>)}
        {current.videoInputDevices.map((device, index) =>
-        <option key={index} value={device.deviceId} >{device.label}</option>)}
+        <option key={index} value={
+          device.facingMode ?
+          device.deviceId + '#' + device.facingMode : device.deviceId} >
+        {device.label}</option>)}
        </select>
      </div>
      <hr/>
@@ -127,11 +134,6 @@ export default function AvSettingModal(props) {
       {current.audioInputDevices.map((device, index) =>
          <option key={index} value={device.deviceId} >{device.label}</option>)}
       </select><br/><br/>
-{/*
-    Gain: &nbsp; <input type="range" value={audioInputGain} 
-      min="0" max="4.0" step="0.01" onChange={handleRange}
-     style={{width: '60%'}} />&nbsp; {audioInputGain} <br/><br/>
-*/}
     <button name="autoGainControl" 
       style={{backgroundColor: autoGainControl ? '#55ff55' : '#eeeeee' }}
       onClick={handleClick} >AutoGain</button>&emsp;
@@ -145,9 +147,12 @@ export default function AvSettingModal(props) {
     <hr/>
     <div> 
     <b>Karaoke file:</b>&emsp;
-    <input type="file" accept="audio/*" onChange={loadFile} /><br/>
-    No file? <br/> 
-    Record screen audio in the main menu<br/>
+    <input type="file" accept="audio/*,.wav,.mp3,.aac,.m4a,.opus,.webm" 
+        onChange={loadFile} /><br/>
+    Last: {karaokeFile}<br/>
+    <br/>
+    (Need karaoke file?)<br/> 
+    If so, record screen audio in the main menu<br/>
     <font color="red">(May not work on some browsers.)</font>
     </div>
     <hr/>
