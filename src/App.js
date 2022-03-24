@@ -10,6 +10,7 @@ import * as mediaUtils from './lib/mediaDeviceUtils.js';
 import StreamRecorder from './lib/StreamRecorder.js';
 import exportRecordedBlob from './lib/exportRecordedBlob.js';
 import GainAndMeter from './lib/GainAndMeter.js';
+import VolumeControl from './lib/VolumeControl.js';
 // import MixBlobsToStream from './lib/MixBlobsToStream.js';
 import SimplePlayback from './lib/SimplePlayback.js';
 import packageJSON from '../package.json';
@@ -49,10 +50,10 @@ const monitorStream = new MediaStream();
 let gainAndMeter = undefined;
 const captureStream = new MediaStream();
 const karaokePlayerAudio = new Audio();
+karaokePlayerAudio.id = "karaokePlayerAudio";
 const ctx = new (window.AudioContext || window.webkitAudioContext) ();
 
 const supportedConstraints = navigator.mediaDevices.getSupportedConstraints();
-
 
 let monitorRecorder = null;
 let monitorBlob = null;
@@ -63,6 +64,10 @@ let mixer = undefined;
 let mixerRecorder = undefined;
 let meterPeakGlobal = -60;
 let captureDeviceId = undefined;
+
+let monitorVolumeCtl = undefined;
+const karaokeVolumeCtl 
+  = new VolumeControl(ctx, karaokePlayerAudio, -6);
 
 /* // default
   const deviceOptions = {
@@ -91,8 +96,8 @@ function App() {
   const [micGain, setMicGain] = useState(0); // in dB
   const [meterValue, setMeterValue] = useState(-100); 
   const [meterPeak, setMeterPeak] = useState(meterPeakGlobal); 
-  const [monitorVolume, setMonitorVolume] = useState(0); // 0 to 1
-  const [karaokeVolume, setKaraokeVolume] = useState(0.5); // 0 to 1
+  const [monitorVolume, setMonitorVolume] = useState(-60); // in dB
+  const [karaokeVolume, setKaraokeVolume] = useState(-6); // in dB
   const [mixVocalGain, setMixVocalGain] = useState(0); // dB
   const [mixKaraokeGain, setMixKaraokeGain] = useState(-6); // dB
   const [mixKaraokeDelay, setMixKaraokeDelay] = useState(0); // msec
@@ -119,6 +124,7 @@ function App() {
       return;
     } catch (err) {console.error(err);}
 
+
   }; // constructor;
 
   const getMediaDeviceList = async () => {
@@ -135,8 +141,11 @@ function App() {
     // console.log('setMediaDevice', command, value);
 
     if (videoRef.current.srcObject === undefined 
-        || videoRef.current.srcObject === null) 
+        || videoRef.current.srcObject === null){
        videoRef.current.srcObject = monitorStream;
+       monitorVolumeCtl = new VolumeControl(
+         ctx, videoRef.current, monitorVolume);
+    }
 
     if (command === 'audioinput'){ 
       // console.log('setMediaDevice audioInput', value);
@@ -162,7 +171,7 @@ function App() {
       const processedAudioTrack = gainAndMeter.getOutputTrack();
       // console.log('gainAndMeter', processedAudioTrack);
       monitorStream.addTrack(processedAudioTrack);
-      videoRef.current.volume = monitorVolume;
+
 
       setRecordDisabled(false);
 
@@ -182,8 +191,6 @@ function App() {
         });
 
         monitorStream.addTrack(await mediaUtils.getCameraTrack(value));  
-
-        videoRef.current.volume = monitorVolume;
         setRecordDisabled(false);
 
         return;
@@ -240,6 +247,7 @@ function App() {
 
     if (isRecording) {
       console.log('stop recording');
+      try {
         karaokePlayerAudio.pause();
 
       if (monitorRecorder) {
@@ -252,6 +260,7 @@ function App() {
 
       setIsRecording(false);
       return;
+      } catch (err) {console.error(err);}
     } // end stop recording 
 
  // startRecording
@@ -270,7 +279,6 @@ function App() {
    if (avSettings.karaokeFile !== undefined) {
      karaokePlayerAudio.pause(); // no GUI
      karaokePlayerAudio.src = URL.createObjectURL(avSettings.karaokeFile);
-     karaokePlayerAudio.volume = karaokeVolume;
    }
 
 // check number of tracks in the streams
@@ -290,8 +298,7 @@ function App() {
       monitorRecorder.start();
     }
 
-    //await sleep(5000);
-    karaokePlayerAudio.play();
+    await karaokePlayerAudio.play();
 
     setIsRecording(true);
     return;
@@ -311,21 +318,6 @@ function App() {
       mixer = new SimplePlayback(ctx, videoRef.current, 
               karaokePlayerAudio,monitorBlob,
               avSettings.karaokeFile, mixKaraokeGain);
-/*
-      setMonitorVolume(videoRef.current.volume); 
-      setKaraokeVolume(karaokePlayerAudio.volume); 
-*/
-
-/*
-      mixer = new MixBlobsToStream(ctx,monitorBlob, avSettings.karaokeFile,
-         mixKaraokeDelay,mixVocalGain,mixKaraokeGain);
-      const stream = await mixer.getOutputStream();
-*/
-
-      /* 
-       mixerRecorder = new StreamRecorder(stream);
-       mixerRecorder.start();
-      */
 
 /*
       videoRef.current.pause(); 
@@ -333,7 +325,6 @@ function App() {
       videoRef.current.srcObject = stream;
       videoRef.current.volume = 1.0;
       videoRef.current.play();
-      setMonitorVolume(videoRef.current.volume); 
 */
 
       setIsPlaying(true);
@@ -353,12 +344,12 @@ function App() {
     const name = event.target.name;
     const volume = parseFloat(event.target.value);
 
-    if (name === 'monitorVolume'){
-      videoRef.current.volume = volume;
+    if (name === 'monitorVolume'){ // in dB
       setMonitorVolume(volume);
+      if (monitorVolumeCtl) monitorVolumeCtl.setVolume(volume);
     } else if (name === 'karaokeVolume'){
-      karaokePlayerAudio.volume = volume;
       setKaraokeVolume(volume);
+      if (karaokeVolumeCtl) karaokeVolumeCtl.setVolume(volume);
     }
   };
 
@@ -529,12 +520,12 @@ Playback:&ensp;
      style={{width: '20%'}}></meter>&nbsp;10, Peak {meterPeak.toFixed(1)}
      <br/>
      Monitor: &emsp;<input type='range' name='monitorVolume'
-         min={0} max={1} step={0.01}
+         min={-60} max={12} step={0.1}
          value ={monitorVolume} onChange = {handleVolume} /> 
        &nbsp;{monitorVolume.toFixed(2)}
      &emsp;&emsp;
      Karaoke: &emsp;<input type='range' name='karaokeVolume'
-        min={0} max={1} step={0.01}
+        min={-60} max={12} step={0.01}
        value ={karaokeVolume} onChange = {handleVolume} /> 
        &nbsp;{karaokeVolume.toFixed(2)}<br/>
     <hr/>
@@ -564,7 +555,7 @@ Playback:&ensp;
     <hr/>
     </div>
 */}
-      <video ref={videoRef} autoPlay 
+      <video ref={videoRef} id="monitorVideo" autoPlay muted
        playsInline style={{width: '100%'}} />
     </div>
 
