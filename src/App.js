@@ -3,7 +3,6 @@ import React, { useRef, useState } from 'react';
 import './App.css';
 import asyncModal from 'react-async-modal';
 import 'react-responsive-modal/styles.css';
-// import useAsyncState from './lib/useAsyncState.js';
 
 // my libraries
 import {sleep} from './lib/sleep.js';
@@ -11,13 +10,15 @@ import * as mediaUtils from './lib/mediaDeviceUtils.js';
 import StreamRecorder from './lib/StreamRecorder.js';
 import exportRecordedBlob from './lib/exportRecordedBlob.js';
 import GainAndMeter from './lib/GainAndMeter.js';
-import MixBlobsToStream from './lib/MixBlobsToStream.js';
+// import MixBlobsToStream from './lib/MixBlobsToStream.js';
+import SimplePlayback from './lib/SimplePlayback.js';
 import packageJSON from '../package.json';
 import AvSettingModal from './modal/AvSettingModal.js';
 import CaptureAudioModal from './modal/CaptureAudioModal.js';
 
 // https://stackoverflow.com/questions/44360301/web-audio-api-creating-a-peak-meter-with-analysernode
 
+// const showExperimental = false;  // for hiding unimplemented controls
 const showExperimental = true;  // for hiding unimplemented controls
 
 asyncModal.setDefaultModalProps({
@@ -49,6 +50,8 @@ let gainAndMeter = undefined;
 const captureStream = new MediaStream();
 const karaokePlayerAudio = new Audio();
 const ctx = new (window.AudioContext || window.webkitAudioContext) ();
+
+const supportedConstraints = navigator.mediaDevices.getSupportedConstraints();
 
 
 let monitorRecorder = null;
@@ -91,8 +94,8 @@ function App() {
   const [monitorVolume, setMonitorVolume] = useState(0); // 0 to 1
   const [karaokeVolume, setKaraokeVolume] = useState(0.5); // 0 to 1
   const [mixVocalGain, setMixVocalGain] = useState(0); // dB
-  const [mixKaraokeGain, setMixKaraokeGain] = useState(0); // dB
-  const [mixKaraokeDelay, setMixKaraokeDelay] = useState(120); // msec
+  const [mixKaraokeGain, setMixKaraokeGain] = useState(-6); // dB
+  const [mixKaraokeDelay, setMixKaraokeDelay] = useState(0); // msec
   const [balance, setbalance] = useState(0.5); // 0 to 1
 
   const [recordDisabled, setRecordDisabled] = useState(true);
@@ -105,6 +108,8 @@ function App() {
 
     console.log("CONSTRUCTOR");
     setIsInitialized(true);
+
+    console.log('supported', supportedConstraints);
 
     navigator.mediaDevices.ondevicechange = getMediaDeviceList;
 
@@ -148,6 +153,9 @@ function App() {
       });
 
       const originalAudioTrack = await mediaUtils.getMicTrack(value);  
+      console.log('getMicTrack constraints', 
+        originalAudioTrack.getConstraints());
+
       gainAndMeter = new GainAndMeter(ctx,originalAudioTrack,micGain,
         meterCallback);
 
@@ -246,7 +254,6 @@ function App() {
       return;
     } // end stop recording 
 
-
  // startRecording
     console.log('start recording');
 
@@ -282,6 +289,8 @@ function App() {
       monitorRecorder = new StreamRecorder(monitorStream);
       monitorRecorder.start();
     }
+
+    //await sleep(5000);
     karaokePlayerAudio.play();
 
     setIsRecording(true);
@@ -298,19 +307,34 @@ function App() {
       setIsPlaying(false);
     } else {
       console.log('start playback mix');
+
+      mixer = new SimplePlayback(ctx, videoRef.current, 
+              karaokePlayerAudio,monitorBlob,
+              avSettings.karaokeFile, mixKaraokeGain);
+/*
+      setMonitorVolume(videoRef.current.volume); 
+      setKaraokeVolume(karaokePlayerAudio.volume); 
+*/
+
+/*
       mixer = new MixBlobsToStream(ctx,monitorBlob, avSettings.karaokeFile,
-         mixKaraokeDelay, mixVocalGain,mixKaraokeGain);
+         mixKaraokeDelay,mixVocalGain,mixKaraokeGain);
       const stream = await mixer.getOutputStream();
+*/
 
       /* 
        mixerRecorder = new StreamRecorder(stream);
        mixerRecorder.start();
       */
+
+/*
       videoRef.current.pause(); 
+      videoRef.current.src = null
       videoRef.current.srcObject = stream;
       videoRef.current.volume = 1.0;
       videoRef.current.play();
-      setMonitorVolume(1.0); 
+      setMonitorVolume(videoRef.current.volume); 
+*/
 
       setIsPlaying(true);
     }
@@ -444,7 +468,7 @@ function App() {
        if(mixer) mixer.setKaraokeDelay(delay - 1);
      break;
      case 'karaokeDelayAdd':
-       setMixKaraokeDelay(mixKaraokeDelay + 1);
+       setMixKaraokeDelay(delay + 1);
        if(mixer) mixer.setKaraokeDelay(delay + 1);
      break;
      default:
@@ -471,26 +495,25 @@ function App() {
     <span>
     1) <button className="button"
       name="avSetting" onClick={openAvSettings}>AVSet</button>
-    &emsp; 
-
+    &ensp; 
     2) <button className="button" disabled={recordDisabled}
        name="record" onClick={startRecording} 
        style={{backgroundColor: isRecording ? '#55ff55' : '#eeeeee' }} >
       {isRecording ? 'Stop' : 'Record'}</button>
-    &emsp; 
-    3) <button className="button" disabled={exportDisabled}
+    &ensp; 
+    3 or 6) <button className="button" disabled={exportDisabled}
        name="export" 
        onClick={exportFiles}>Export</button>
-    &emsp;
-    </span>
- { showExperimental === true &&
-   <span>
+    <br/>
+Playback:&ensp;
     4) <button className="button" disabled={exportDisabled}
        name="playback" onClick={playback}
        style={{backgroundColor: isPlaying ? '#55ff55' : '#eeeeee' }} >
-      {isPlaying ? 'Stop' : 'Play mix'}</button>
-   </span>
- }
+      {isPlaying ? 'Stop' : 'Play'}</button>
+    &ensp;
+    5) <button className="button" >Record</button>
+    &ensp;
+    </span>
     <hr/>
     <div>
      MicGain(dB): &emsp;<input type='range' name='micGain'
@@ -498,8 +521,9 @@ function App() {
          value ={micGain} onChange = {handleMicGain} /> 
        &nbsp;{ micGain >= 0 ? 
           "+" + ('000' + Math.abs(micGain)).slice(-2)
-          : "-" + ('000' + Math.abs(micGain)).slice(-2) },
-     &nbsp; <button onClick={(e) => meterPeakGlobal = -60}>Reset</button>
+          : "-" + ('000' + Math.abs(micGain)).slice(-2) }<br/>
+     &nbsp; <button className='smallButton'
+          onClick={(e) => meterPeakGlobal = -60}>Reset</button>
      &nbsp;-36&nbsp;
      <meter ref={peakMeter} min={-36} high={-3} max={10} value={meterValue}
      style={{width: '20%'}}></meter>&nbsp;10, Peak {meterPeak.toFixed(1)}
@@ -514,14 +538,14 @@ function App() {
        value ={karaokeVolume} onChange = {handleVolume} /> 
        &nbsp;{karaokeVolume.toFixed(2)}<br/>
     <hr/>
- { showExperimental === true && 
+ {/* 
    <div>
      Mix:&emsp;
      Vocal:&nbsp;
      <span>
      <button name="vocalSub" className="tinyButton"
       onClick={handleMixerSettings} >-</button>
-     &nbsp;{mixVocalGain}&nbsp;,
+     &nbsp;{mixVocalGain}&nbsp;
      <button name="vocalAdd" className="tinyButton"
       onClick={handleMixerSettings} >+</button>&nbsp;|
      Karaoke:&nbsp;
@@ -529,8 +553,8 @@ function App() {
       onClick={handleMixerSettings} >-</button>
      &nbsp;{mixKaraokeGain}&nbsp;
      <button name="karaokeAdd" className="tinyButton"
-      onClick={handleMixerSettings} >+</button>&nbsp;|
-     KaraokeDelay:&nbsp;
+      onClick={handleMixerSettings} >+</button>&nbsp;
+    | KaraokeDelay:&nbsp;
      <button name="karaokeDelaySub" className="tinyButton"
       onClick={handleMixerSettings} >-</button>
      &nbsp;{mixKaraokeDelay} msec&nbsp;
@@ -539,7 +563,7 @@ function App() {
     </span>
     <hr/>
     </div>
-}
+*/}
       <video ref={videoRef} autoPlay 
        playsInline style={{width: '100%'}} />
     </div>

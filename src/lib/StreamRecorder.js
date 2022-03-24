@@ -9,7 +9,9 @@ export default class StreamRecorder {
       audioBitsPersecond: 256000,
 //      videoBitsPerSecond: 128000,
       mimeType: 'video/webm'
+//      mimeType: 'video/mp4'
     };
+
     this.stream = stream;
 
     let chunks = [];

@@ -46,15 +46,20 @@ export default function AvSettingModal(props) {
 
     if (name === 'videoInput') {
       console.log('videoInput', value);
-      let [deviceId,facingMode] = value.split('#');
+
+      let [deviceId,facingMode] = value.split(' ');
+
       console.log('deviceId, facingMode', deviceId, facingMode);
-      if (facingMode) facingMode = '{exact: ' + facingMode + '}';
 
       const videoConstraints = {
         deviceId: {exact: deviceId},
-        facingMode: facingMode,
         width: {ideal: 1920}, height: {ideal: 1080}
       };
+
+      if (facingMode) 
+         videoConstraints.facingMode = {exact: facingMode};
+
+      console.log(videoConstraints);
       setMediaDevice('videoinput',videoConstraints);
       setVideoInput(value);
       return;
@@ -121,7 +126,7 @@ export default function AvSettingModal(props) {
        {current.videoInputDevices.map((device, index) =>
         <option key={index} value={
           device.facingMode ?
-          device.deviceId + '#' + device.facingMode : device.deviceId} >
+          device.deviceId + ' ' + device.facingMode : device.deviceId} >
         {device.label}</option>)}
        </select>
      </div>

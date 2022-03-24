@@ -169,11 +169,13 @@ export function showSupportedConstraints(){
   return supported;
 }
 
+/*
 export function switchCameras(track, camera) {
   const constraints = track.getConstraints();
   constraints.facingMode = camera;
   track.applyConstraints(constraints);
 }
+*/
 
 export function setAudioTrackProperty(track, property, value){
   const constraints = track.getConstraints();

@@ -41,7 +41,6 @@ export default class MixBlobsToStream {
    setKaraokeDelay(msec){
    // this.karaokeDelay = msec;
 /*
-     console.log('delay', msec, this.karaokeDelay);
      if (msec >= 0) {
        this.delayNode1.delayTime.value = 0;
        this.delayNode2.delayTime.value = msec/1000;
@@ -54,12 +53,13 @@ export default class MixBlobsToStream {
 
    setVocalGain(dB){ // dB
      // this.vocalGain = dB;
-     if(this.gainNode1) this.gainNode1.gain.value = Math.pow(10,dB/20);
+
+     this.gainNode1.gain.value = Math.pow(10,dB/20);
    }
 
    setKaraokeGain(dB){ // dB
      // this.karaokeGain = dB;
-     if (this.gainNode2) this.gainNode2.gain.value = Math.pow(10,dB/20);
+     this.gainNode2.gain.value = Math.pow(10,dB/20);
      // console.log('karaokeGain value', this.gainNode2.gain.value);
    }
 
@@ -92,7 +92,6 @@ export default class MixBlobsToStream {
    }
   
   async init(){
-    console.log('delay', this.karaokeDelay);
 
     this.video = document.createElement("video");
     this.video.src = URL.createObjectURL(this.videoBlob);
@@ -132,22 +131,20 @@ export default class MixBlobsToStream {
  */
 
     this.video.load(); 
-//    this.video.onloadeddata = (e) => {
-    this.video.oncanplaythrough = (e) => {
+    this.video.onloadeddata = (e) => {
       // console.log(e);
-     let videoStream = undefined;
+      let videoStream = undefined;
       try {
         if (this.video.captureStream) {
           videoStream = this.video.captureStream();
-          // console.log('captureStream set:', videoStream.getTracks());
+          console.log('captureStream set:', videoStream.getTracks());
         } else if (this.video.mozCaptureStream) {
           videoStream = this.video.mozCaptureStream();
-          // console.log('mozCaptureStream set:', videoStream.getTracks());
+          console.log('mozCaptureStream set:', videoStream.getTracks());
         } else { 
           alert('Sorry captureStream() is NOT available on this browser',
           navigator.userAgent);
         }
-
 
         if (videoStream.getTracks().length === 0) 
          throw 'captured ZERO tracks ';
@@ -158,20 +155,12 @@ export default class MixBlobsToStream {
     this.delayNode1.connect(this.gainNode1);
     this.gainNode1.connect(dest);
 
+    this.video.play(); // Play before captureStream()
+    this.karaoke.start(0);
+    this.karaoke.onended = (e) => {this.stop()};
+
     this.outputStream.addTrack(videoStream.getVideoTracks()[0]);
     this.outputStream.addTrack(dest.stream.getAudioTracks()[0]);
-
-// Now playing
-    const begin = performance.now();
-
-    this.video.play(); // Play after oncanplay or onloadeddata
-    this.karaoke.start();
-
-    this.video.onended = (e) => {this.stop()};
-    this.karaoke.onended = (e) => {this.stop()};
-    const diff = performance.now() - begin; // msec
-    console.log('diff', diff);
-
 //    console.log('outputStream video and audio:', this.outputStream.getTracks());
 
     }; // onloadeddata

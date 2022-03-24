@@ -1,22 +1,27 @@
+br {
+display: block;
+content: "";
+margin: 10px 0;
+}
 .App {
 /*  text-align: center; */
   text-align: left;
   line-height: 2.0;
-  max-width: 720px;
+  max-width: 375px;
   margin: 0 auto;
   padding: 30px;
 }
 
 .button {
   font-size: 100%;
-  width: 100px;
-  padding: 10px;
+  width: 70px;
+  padding: 5px;
   box-sizing: border-box;
   cursor: pointer;
 }
 
 .smallButton {
-  font-size: 90%;
+  font-size: 80%;
   width: 70px;
   padding: 5px;
   box-sizing: border-box;
@@ -24,7 +29,7 @@
 }
 
 .tinyButton {
-  font-size: 150%;
+  font-size: 100%;
   width: 40px;
   padding: 2px;
   box-sizing: border-box;
