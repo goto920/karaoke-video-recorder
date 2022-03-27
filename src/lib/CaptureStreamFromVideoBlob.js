@@ -10,6 +10,7 @@ export default class CaptureStreamFromVideoBlob {
     this.init = this.init.bind(this);
     this.start = this.start.bind(this);
     this.getStream = this.getStream.bind(this);
+    this.stop = this.stop.bind(this);
 
     this.init();
   }
@@ -47,6 +48,11 @@ export default class CaptureStreamFromVideoBlob {
     while (this.outputStream === null) await sleep(100);
     // console.log('capture', this.outputStream.getTracks());
     return this.outputStream;
+  }
+
+  stop(){
+    this.video.pause();
+    this.video = null;
   }
 
 };

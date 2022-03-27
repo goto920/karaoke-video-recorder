@@ -7,10 +7,9 @@ export default class StreamRecorder {
 
     const options = {
       audioBitsPersecond: 256000,
-      videoBitsPerSecond: 128000,
-//      mimeType: 'video/webm'
-//      mimeType: 'video/mp4'
+//      videoBitsPerSecond: 128000,
     };
+//      mimeType: 'video/webm' // let the recorder decide
 
     this.stream = stream.clone();
 
@@ -35,7 +34,11 @@ export default class StreamRecorder {
 
   }
 
-  start() { this.recorder.start(); this.recording = true;}
+  start() {
+    console.log('recording start', this.stream.getTracks());
+    this.recorder.start(); 
+    this.recording = true;
+  }
 
   async stop() { 
     this.recorder.stop(); 

@@ -1,4 +1,3 @@
-// import logo from './logo.svg';
 import React, { useRef, useState } from 'react';
 import './App.css';
 import asyncModal from 'react-async-modal';
@@ -68,6 +67,7 @@ function App() {
   const videoRef = useRef();
   const peakMeter = useRef();
 
+  const [showCapture, setShowCapture] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
@@ -232,8 +232,9 @@ function App() {
 
       if (monitorRecorder) {
         monitorBlob = await monitorRecorder.stop();
-        monitorAudioBlob = await monitorAudioRecorder.stop();
+        // monitorAudioBlob = await monitorAudioRecorder.stop();
         console.log('monitorBlob', monitorBlob);
+        monitorRecorder = undefined;
       }
 
       if (monitorBlob !== null)
@@ -271,12 +272,14 @@ function App() {
 
     if (numMonitorTracks > 0) {
       monitorRecorder = new StreamRecorder(monitorStream);
-      monitorAudioRecorder = new StreamRecorder(monitorAudioStream);
+    //  monitorAudioRecorder = new StreamRecorder(monitorAudioStream);
       await sleep(3000); // 3 sec interval
       monitorRecorder.start();
-      monitorAudioRecorder.start();
+    //  monitorAudioRecorder.start();
     }
-    await karaokePlayerAudio.play();
+    try {
+      await karaokePlayerAudio.play();
+    } catch (err) {console.error(err);}
 
     setIsRecording(true);
     return;
@@ -287,48 +290,69 @@ function App() {
 
     if (isPlaying) {
       console.log('stop playback mix');
+
       if (mixer) {
         mixer.stop();
         mixer = null;
-        blobCapture.stop();
+        if (blobCapture) blobCapture.stop();
         blobCapture = null;
         videoRef.current.muted = true; 
         videoRef.current.srcObject = monitorStream;
       }
-      // mixBlob = await mixerRecorder.stop()
-      // console.log(monitorBlob);
+
+      if(mixerRecorder) {
+        mixBlob = await mixerRecorder.stop();
+        console.log(mixBlob);
+        mixerRecorder = undefined;
+      }
       setIsPlaying(false);
     } else {
       console.log('start playback mix');
-      videoRef.current.muted = true;
-      videoRef.current.pause();
-      videoRef.current.srcObject = null;
 
-      setMonitorVolume(-6);
-      mixer = new MixBlobsToStream(ctx, 
+      try {
+        videoRef.current.muted = true;
+        videoRef.current.pause();
+        videoRef.current.srcObject = null;
+
+        setMonitorVolume(-6);
+        mixer = new MixBlobsToStream(ctx, 
            monitorBlob, avSettings.karaokeFile, 
            monitorVolume, karaokeVolume);
-      await mixer.init();
-      const mixerStream = await mixer.getStream();
+        await mixer.init();
 
-      blobCapture = new CaptureStreamFromVideoBlob(monitorBlob);
-      const videoStream = await blobCapture.getStream();
+        const mixerStream = await mixer.getStream();
 
-      const stream = new MediaStream();
-      stream.addTrack(videoStream.getVideoTracks()[0]);
-      stream.addTrack(mixerStream.getAudioTracks()[0]);
-      console.log('start playing', stream.getTracks());
+        blobCapture = new CaptureStreamFromVideoBlob(monitorBlob);
+        const videoStream = await blobCapture.getStream();
 
-      videoRef.current.srcObject = stream;
-      videoRef.current.muted = false;
-      videoRef.current.volume = 1.0;
-      videoRef.current.play();
-// start audio and video
-      mixer.startAt(mixKaraokeDelay); // 1000 msec lead time
-      blobCapture.start(1000); // 1000 msec lead time
+        const stream = new MediaStream();
+        stream.addTrack(videoStream.getVideoTracks()[0]);
+        stream.addTrack(mixerStream.getAudioTracks()[0]);
+        console.log('mixerStream', stream.getTracks());
+        mixerRecorder = new StreamRecorder(stream);
+
+        videoRef.current.srcObject = stream;
+        videoRef.current.muted = false;
+        videoRef.current.volume = 1.0;
+
+      // start audio and video
+        mixer.startAt(mixKaraokeDelay); // 1000 msec lead time internally
+        blobCapture.start(1000); // 1000 msec lead time
+
+// start monitor player after the stream become active
+        try {
+          // console.log('playback on monitor');
+          await videoRef.current.play();
+          // console.log('playback on monitor success');
+        } catch (err) {console.error(err);}
+
+        mixerRecorder.start();
+
+      } catch (err) {console.error(err);}
 
       setIsPlaying(true);
     }
+
   };
 
   const exportFiles = (event) => {
@@ -336,7 +360,7 @@ function App() {
 
     const seconds = Math.floor(Date.now()/1000);
     exportRecordedBlob(monitorBlob, 'monitor_' + seconds);
-    exportRecordedBlob(monitorAudioBlob, 'monitorAudio_' + seconds);
+    // exportRecordedBlob(monitorAudioBlob, 'monitorAudio_' + seconds);
     exportRecordedBlob(mixBlob, 'mix_' + seconds);
 
   };
@@ -400,11 +424,13 @@ function App() {
 
     if (event.target.name === 'record'){
       if (!isCapturing) {
-        console.log('record capture start');
-        try {
-          captureRecorder.start(); 
-          setIsCapturing(true); return;
-        } catch(err) {console.log(err);}
+        if (captureRecorder) {
+          console.log('record capture start');
+          try {
+            if (captureRecorder) captureRecorder.start(); 
+            setIsCapturing(true); return;
+          } catch(err) {console.log(err);}
+        } else console.log('screen capture not ready');
 
         return; 
       } else {
@@ -415,6 +441,7 @@ function App() {
           captureBlob = await captureRecorder.stop();
           console.log('captureBlob', captureBlob);
           captureRecorder.clearStream();
+          captureRecorder = undefined;
         }
 
         setIsCapturing(false);
@@ -444,8 +471,12 @@ function App() {
 
   return (
     <div className="App">
-    <h2>KG's Karaoke Video Recorder</h2>
-    (Need karaoke file?) Screen Audio Capture: &emsp; 
+    <b>KG's Karaoke Video Recorder</b><br/>
+    Screen Audio Capture: &emsp;
+    <button onClick={(e) => setShowCapture(!showCapture)}>Show/Hide</button>
+
+  { showCapture &&
+    <div>
     <button name="set" className="smallButton" 
       onClick={handleScreenCapture}>Set</button> &emsp;
     <button name="record" className="smallButton" 
@@ -454,28 +485,27 @@ function App() {
     {isCapturing ? 'Stop' : 'Record'}</button> &emsp;
     <button name="export" className="smallButton"
       onClick={handleScreenCapture}>Export</button> &emsp;
+    </div>
+  }
     <hr/>
     <span>
+(Skip 3, if you use a video editor.)<br/>
     1) <button className="button"
-      name="avSetting" onClick={openAvSettings}>AVSet</button>
+      name="avSetting" onClick={openAvSettings}>Set</button>
     &ensp; 
     2) <button className="button" disabled={recordDisabled}
        name="record" onClick={startRecording} 
        style={{backgroundColor: isRecording ? '#55ff55' : '#eeeeee' }} >
-      {isRecording ? 'Stop' : 'Record'}</button>
+      {isRecording ? 'Stop' : 'Rec'}</button>
     &ensp; 
-    3 or 6) <button className="button" disabled={exportDisabled}
-       name="export" 
-       onClick={exportFiles}>Export</button>
-    <br/>
-Playback:&ensp;
-    4) <button className="button" disabled={exportDisabled}
+    3) <button className="button" disabled={exportDisabled}
        name="playback" onClick={playback}
        style={{backgroundColor: isPlaying ? '#55ff55' : '#eeeeee' }} >
       {isPlaying ? 'Stop' : 'Play'}</button>
-    &ensp;
-    5) <button className="button" >Record</button>
-    &ensp;
+    &ensp; 
+    4) <button className="button" disabled={exportDisabled}
+       name="export" 
+       onClick={exportFiles}>Export</button>
     </span>
     <hr/>
     <div>
@@ -486,8 +516,8 @@ Playback:&ensp;
           "+" + ('000' + Math.abs(micGain)).slice(-2)
           : "-" + ('000' + Math.abs(micGain)).slice(-2) }<br/>
      &nbsp; <button className='smallButton'
-          onClick={(e) => meterPeakGlobal = -60}>Reset</button>
-     &nbsp;-36&nbsp;
+          onClick={(e) => meterPeakGlobal = -60}>Reset peak</button>
+     &nbsp;&nbsp;-36&nbsp;
      <meter ref={peakMeter} min={-36} high={-3} max={10} value={meterValue}
      style={{width: '20%'}}></meter>&nbsp;10, Peak {meterPeak.toFixed(1)}
      <br/>
@@ -500,10 +530,9 @@ Playback:&ensp;
         min={-60} max={12} step={0.01}
        value ={karaokeVolume} onChange = {handleVolume} /> 
        &nbsp;{karaokeVolume.toFixed(2)}<br/>
-     Delay(msec): &emsp;<input type='range' name='mixKaraokeDelay'
+     Delay(msec): &emsp;<input type='number' name='mixKaraokeDelay'
         min={0} max={150} step={1}
        value ={mixKaraokeDelay} onChange = {handleDelay} /> 
-       &nbsp;{mixKaraokeDelay}
     <hr/>
 
     <video ref={videoRef} id="monitorVideo" autoPlay muted
@@ -519,7 +548,7 @@ Playback:&ensp;
          rel="noreferrer">Brief Guide</a>
 */}
     <a href="https://goto920.github.io/demos/karaoke-video-recorder/" 
-     target="_blank" rel="noreferrer">
+     target="_blank" rel="noreferrer"><br/>
     Manual/Update</a>&nbsp;on goto920.github.io<hr/>
     </div>
 
