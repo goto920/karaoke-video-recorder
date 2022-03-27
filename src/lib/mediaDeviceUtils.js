@@ -1,5 +1,6 @@
 /* MediaDevices manipulation */
 
+/*
 export async function recordStream(stream){
 
   const options = {
@@ -16,6 +17,7 @@ export async function recordStream(stream){
   };  
   this.recorder.ondataavailable = (e) => { this.blob.push(e.data); };
 }
+*/
 
 export async function getMediaDeviceList(currentList){
 
@@ -149,6 +151,7 @@ export async function getCameraTrack(videoConstraints){
 https://stackoverflow.com/questions/52263471/how-to-create-a-mediastream-from-a-uploaded-audio-file-or-a-audio-file-url-using
 */
 
+/*
 export function audioToMediaStreamTrack(ctx, audio){
 //  const ctx = new (window.AudioContext || window.webkitAudioContext) ();
   if (ctx.state === 'suspended') ctx.resume();
@@ -161,6 +164,7 @@ export function audioToMediaStreamTrack(ctx, audio){
 
   return tracks[0];
 }
+*/
 
 /* https://developer.mozilla.org/en-US/docs/Web/API/Media_Streams_API/Constraints */
 export function showSupportedConstraints(){

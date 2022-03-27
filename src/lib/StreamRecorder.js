@@ -7,12 +7,12 @@ export default class StreamRecorder {
 
     const options = {
       audioBitsPersecond: 256000,
-//      videoBitsPerSecond: 128000,
-      mimeType: 'video/webm'
+      videoBitsPerSecond: 128000,
+//      mimeType: 'video/webm'
 //      mimeType: 'video/mp4'
     };
 
-    this.stream = stream;
+    this.stream = stream.clone();
 
     let chunks = [];
 
@@ -50,7 +50,8 @@ export default class StreamRecorder {
     if (this.recording) return false;
 
     this.stream.getTracks().forEach (track => {
-          this.stream.removeTrack(track); track.stop(); });
+          this.stream.removeTrack(track);}); 
+    // track.stop(); });
     
     return true; 
   }

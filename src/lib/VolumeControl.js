@@ -6,13 +6,13 @@ export default class VolumeControl {
      // parameters
      this.ctx = audioCtx;
      this.mediaElement = mediaElement;
-     this.mediaElement.volume = 1;
+     this.initialVolume = initialVolume; 
 
      // functions
+
      this.init = this.init.bind(this);
-     this.gainNode = new GainNode(this.ctx, 
-        {gain: Math.pow(10, initialVolume/20)});
      this.setVolume = this.setVolume.bind(this); // dB
+     this.stop = this.stop.bind(this); // dB
       
      this.init();
    }
@@ -22,10 +22,18 @@ export default class VolumeControl {
    }
 
    init(){
-    const source = this.ctx.createMediaElementSource(this.mediaElement);
-    source.connect(this.gainNode);
-    this.gainNode.connect(this.ctx.destination);
+     this.mediaElement.volume = 1;
+     // this.mediaElement.muted = true;
 
-  } // end init()
+     this.gainNode = new GainNode(this.ctx, 
+        {gain: Math.pow(10, this.initialVolume/20)});
+     this.source = this.ctx.createMediaElementSource(this.mediaElement);
+     this.source.connect(this.gainNode);
+     this.gainNode.connect(this.ctx.destination);
+   } // end init()
+
+   stop(){
+     this.source.stop();
+   }
 
 };

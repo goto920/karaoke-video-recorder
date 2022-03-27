@@ -1,4 +1,4 @@
-import {sleep} from './sleep.js';
+import sleep from './sleep.js';
 import {MediaSync} from 'mediasync';
 
 export default class SimplePlayback {
@@ -19,64 +19,82 @@ export default class SimplePlayback {
      this.karaoke = undefined;
 
      // functions
-     this.init = this.init.bind(this);
+     this.start = this.start.bind(this);
      this.stop = this.stop.bind(this);
 
-     this.init();
-   }
-
-
-   setKaraokeGain(dB){ // dB
    }
 
    stop(){
-     if (this.karaokeAudio) this.karaokeAudio.pause();
-     if (this.monitorVideo) this.monitorVideo.pause(); 
+
+     if (this.karaokeAudio) {
+       console.log('karaoke pause()');
+       this.karaokeAudio.pause();
+       this.karaokeAudio.srcObject = null;
+     }
+
+     if (this.monitorVideo) {
+       console.log('monitorVideo pause()');
+       this.monitorVideo.pause(); 
+       this.monitorVideo.srcObject = null;
+     }
    }
   
-  async init(){
+  async start(){
 
-
-    this.monitorVideo.pause();
+    // this.monitorVideo.pause();
     this.monitorVideo.srcObject = null;
+    // this.monitorVideo.src = undefined;
     this.monitorVideo.src = URL.createObjectURL(this.videoBlob);
     this.monitorVideo.load();
+    console.log('new video blob loading');
     this.monitorVideo.volume = 1.0;
 
-    this.karaokeAudio.pause();
+    // this.karaokeAudio.pause();
     this.karaokeAudio.srcObject = null;
+    // this.karaokeAudio.src = undefined;
     this.karaokeAudio.src = URL.createObjectURL(this.karaokeFile);
     this.karaokeAudio.load();
-    this.karaokeAudio.volume = 0.5;
+    console.log('new karaoke blob loading');
+    this.karaokeAudio.volume = 1.0;
 
     const HAVE_ENOUGH_DATA = 4;
-
     while (this.monitorVideo.readyState !== HAVE_ENOUGH_DATA 
      || this.karaokeAudio.readyState !== HAVE_ENOUGH_DATA ) 
     await sleep(100);
 
-    const ms = new MediaSync();
+    let ms = new MediaSync();
     ms.add(this.monitorVideo);
     ms.add(this.karaokeAudio);
 
     this.monitorVideo.onended = (e) => {
       console.log('monitorVideo ended');
-      if (ms !== null) {
-        //ms.pause();
-        ms.remove(this.monitorVideo);
-        //ms = null;
-      }
+      finish();
     };
+
     this.karaokeAudio.onended = (e) => {
       console.log('karaokeAudio ended');
+      finish();
+    };
+
+    const finish = () => {
       if (ms !== null) {
         // ms.pause();
-        ms.remove(this.karaokeAudio)
-        // ms = null;
+        ms.remove(this.karaokeAudio);
+        ms.remove(this.monitorVideo);
+      //  ms = null;
       }
+      this.stop();
     };
 
     ms.play();
+
+/*
+    this.monitorVideo.play();
+    this.karaokeAudio.play();
+
+    this.karaokeAudio.onended = (e) => {this.monitorVideo.pause();}
+    this.monitorVideo.onended = (e) => {this.karaokeAudio.pause();}
+*/
 
   } // end init()
 

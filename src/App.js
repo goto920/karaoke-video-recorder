@@ -11,8 +11,8 @@ import StreamRecorder from './lib/StreamRecorder.js';
 import exportRecordedBlob from './lib/exportRecordedBlob.js';
 import GainAndMeter from './lib/GainAndMeter.js';
 import VolumeControl from './lib/VolumeControl.js';
-// import MixBlobsToStream from './lib/MixBlobsToStream.js';
-import SimplePlayback from './lib/SimplePlayback.js';
+import MixBlobsToStream from './lib/MixBlobsToStream.js';
+import CaptureStreamFromVideoBlob from './lib/CaptureStreamFromVideoBlob.js';
 import packageJSON from '../package.json';
 import AvSettingModal from './modal/AvSettingModal.js';
 import CaptureAudioModal from './modal/CaptureAudioModal.js';
@@ -21,15 +21,6 @@ import CaptureAudioModal from './modal/CaptureAudioModal.js';
 
 // const showExperimental = false;  // for hiding unimplemented controls
 const showExperimental = true;  // for hiding unimplemented controls
-
-asyncModal.setDefaultModalProps({
-  showCloseIcon: false,
-  style: {
-    modal: {
-      width: 500
-    }
-  }
-});
 
 // Global constants
 const mediaDeviceList = 
@@ -47,44 +38,33 @@ const avSettings = {
 };
 
 const monitorStream = new MediaStream();
-let gainAndMeter = undefined;
+const monitorAudioStream = new MediaStream();
 const captureStream = new MediaStream();
 const karaokePlayerAudio = new Audio();
 karaokePlayerAudio.id = "karaokePlayerAudio";
+
 const ctx = new (window.AudioContext || window.webkitAudioContext) ();
-
 const supportedConstraints = navigator.mediaDevices.getSupportedConstraints();
+const karaokeVolumeCtl 
+  = new VolumeControl(ctx, karaokePlayerAudio, -6);
 
+let gainAndMeter = undefined;
 let monitorRecorder = null;
 let monitorBlob = null;
+let monitorAudioRecorder = null;
+let monitorAudioBlob = null;
 let captureRecorder = null;
 let captureBlob = null;
 let mixBlob = null;
 let mixer = undefined;
+let blobCapture = undefined;
 let mixerRecorder = undefined;
 let meterPeakGlobal = -60;
 let captureDeviceId = undefined;
-
 let monitorVolumeCtl = undefined;
-const karaokeVolumeCtl 
-  = new VolumeControl(ctx, karaokePlayerAudio, -6);
-
-/* // default
-  const deviceOptions = {
-     video: {
-       deviceId: null,
-       width: {ideal: 1920}, height: {ideal: 1080}
-     },
-     audio: {
-       deviceId: null,
-       autoGainControl: false,
-       echoCancellation: false,
-       noiseSuppression: false
-     }
-  };
-*/
 
 function App() {
+
   const videoRef = useRef();
   const peakMeter = useRef();
 
@@ -98,10 +78,7 @@ function App() {
   const [meterPeak, setMeterPeak] = useState(meterPeakGlobal); 
   const [monitorVolume, setMonitorVolume] = useState(-60); // in dB
   const [karaokeVolume, setKaraokeVolume] = useState(-6); // in dB
-  const [mixVocalGain, setMixVocalGain] = useState(0); // dB
-  const [mixKaraokeGain, setMixKaraokeGain] = useState(-6); // dB
-  const [mixKaraokeDelay, setMixKaraokeDelay] = useState(0); // msec
-  const [balance, setbalance] = useState(0.5); // 0 to 1
+  const [mixKaraokeDelay, setMixKaraokeDelay] = useState(70); // dB
 
   const [recordDisabled, setRecordDisabled] = useState(true);
   const [exportDisabled, setExportDisabled] = useState(true);
@@ -116,6 +93,9 @@ function App() {
 
     console.log('supported', supportedConstraints);
 
+    asyncModal.setDefaultModalProps({
+      showCloseIcon: false, style: { modal: { width: 500 }}});
+
     navigator.mediaDevices.ondevicechange = getMediaDeviceList;
 
     try {
@@ -123,7 +103,6 @@ function App() {
       // console.log('mediaDeviceList', mediaDeviceList);
       return;
     } catch (err) {console.error(err);}
-
 
   }; // constructor;
 
@@ -143,6 +122,7 @@ function App() {
     if (videoRef.current.srcObject === undefined 
         || videoRef.current.srcObject === null){
        videoRef.current.srcObject = monitorStream;
+       videoRef.current.load();
        monitorVolumeCtl = new VolumeControl(
          ctx, videoRef.current, monitorVolume);
     }
@@ -171,7 +151,7 @@ function App() {
       const processedAudioTrack = gainAndMeter.getOutputTrack();
       // console.log('gainAndMeter', processedAudioTrack);
       monitorStream.addTrack(processedAudioTrack);
-
+      monitorAudioStream.addTrack(processedAudioTrack);
 
       setRecordDisabled(false);
 
@@ -252,6 +232,7 @@ function App() {
 
       if (monitorRecorder) {
         monitorBlob = await monitorRecorder.stop();
+        monitorAudioBlob = await monitorAudioRecorder.stop();
         console.log('monitorBlob', monitorBlob);
       }
 
@@ -267,13 +248,6 @@ function App() {
     console.log('start recording');
 
  // prepare stream
-
-/*
-    karaokeStream.getTracks().forEach ( track => {
-        karaokeStream.removeTrack(track);
-        track.stop();
-    });
-*/
 
 // set players
    if (avSettings.karaokeFile !== undefined) {
@@ -292,12 +266,16 @@ function App() {
 // set recorders   
     monitorRecorder = null;
     monitorBlob = null; 
+    monitorAudioRecorder = null;
+    monitorAudioBlob = null; 
 
     if (numMonitorTracks > 0) {
       monitorRecorder = new StreamRecorder(monitorStream);
+      monitorAudioRecorder = new StreamRecorder(monitorAudioStream);
+      await sleep(3000); // 3 sec interval
       monitorRecorder.start();
+      monitorAudioRecorder.start();
     }
-
     await karaokePlayerAudio.play();
 
     setIsRecording(true);
@@ -309,23 +287,45 @@ function App() {
 
     if (isPlaying) {
       console.log('stop playback mix');
-      mixer.stop();
+      if (mixer) {
+        mixer.stop();
+        mixer = null;
+        blobCapture.stop();
+        blobCapture = null;
+        videoRef.current.muted = true; 
+        videoRef.current.srcObject = monitorStream;
+      }
       // mixBlob = await mixerRecorder.stop()
+      // console.log(monitorBlob);
       setIsPlaying(false);
     } else {
       console.log('start playback mix');
+      videoRef.current.muted = true;
+      videoRef.current.pause();
+      videoRef.current.srcObject = null;
 
-      mixer = new SimplePlayback(ctx, videoRef.current, 
-              karaokePlayerAudio,monitorBlob,
-              avSettings.karaokeFile, mixKaraokeGain);
+      setMonitorVolume(-6);
+      mixer = new MixBlobsToStream(ctx, 
+           monitorBlob, avSettings.karaokeFile, 
+           monitorVolume, karaokeVolume);
+      await mixer.init();
+      const mixerStream = await mixer.getStream();
 
-/*
-      videoRef.current.pause(); 
-      videoRef.current.src = null
+      blobCapture = new CaptureStreamFromVideoBlob(monitorBlob);
+      const videoStream = await blobCapture.getStream();
+
+      const stream = new MediaStream();
+      stream.addTrack(videoStream.getVideoTracks()[0]);
+      stream.addTrack(mixerStream.getAudioTracks()[0]);
+      console.log('start playing', stream.getTracks());
+
       videoRef.current.srcObject = stream;
+      videoRef.current.muted = false;
       videoRef.current.volume = 1.0;
       videoRef.current.play();
-*/
+// start audio and video
+      mixer.startAt(mixKaraokeDelay); // 1000 msec lead time
+      blobCapture.start(1000); // 1000 msec lead time
 
       setIsPlaying(true);
     }
@@ -336,7 +336,8 @@ function App() {
 
     const seconds = Math.floor(Date.now()/1000);
     exportRecordedBlob(monitorBlob, 'monitor_' + seconds);
-    // exportRecordedBlob(mixBlob, 'mix_' + seconds);
+    exportRecordedBlob(monitorAudioBlob, 'monitorAudio_' + seconds);
+    exportRecordedBlob(mixBlob, 'mix_' + seconds);
 
   };
 
@@ -346,10 +347,14 @@ function App() {
 
     if (name === 'monitorVolume'){ // in dB
       setMonitorVolume(volume);
-      if (monitorVolumeCtl) monitorVolumeCtl.setVolume(volume);
+      if (monitorVolumeCtl) {
+        if (mixer) mixer.setVocalGain(volume);
+        else monitorVolumeCtl.setVolume(volume);
+      } 
     } else if (name === 'karaokeVolume'){
       setKaraokeVolume(volume);
       if (karaokeVolumeCtl) karaokeVolumeCtl.setVolume(volume);
+      if (mixer) mixer.setKaraokeGain(volume);
     }
   };
 
@@ -429,44 +434,11 @@ function App() {
     
   }; // handleScreenCapture 
 
-  const handleMixerSettings = (e) => {
-    // console.log(e.target.name);
-
-    const name = e.target.name;
-    const vg = mixVocalGain;
-    const kg = mixKaraokeGain;
-    const delay = mixKaraokeDelay;
-
-    switch (name) {
-     case 'vocalSub':
-       setMixVocalGain(vg - 1);
-       if(mixer) mixer.setVocalGain(vg - 1);
-     break;
-     case 'vocalAdd':
-       setMixVocalGain(vg + 1);
-       if(mixer) mixer.setVocalGain(vg + 1);
-     break;
-     case 'karaokeSub':
-       setMixKaraokeGain(kg - 1);
-       if(mixer) mixer.setKaraokeGain(kg - 1);
-     break;
-     case 'karaokeAdd':
-       setMixKaraokeGain(kg + 1);
-       if(mixer) mixer.setKaraokeGain(kg + 1);
-     break;
-     case 'karaokeDelaySub':
-       setMixKaraokeDelay(delay - 1);
-       if(mixer) mixer.setKaraokeDelay(delay - 1);
-     break;
-     case 'karaokeDelayAdd':
-       setMixKaraokeDelay(delay + 1);
-       if(mixer) mixer.setKaraokeDelay(delay + 1);
-     break;
-     default:
-     break;
-    }
-
-  }
+  const handleDelay = (e) => {
+     const delay = parseInt(e.target.value); 
+     setMixKaraokeDelay(delay);
+     if(mixer) mixer.setKaraokeDelay(delay);
+  };
 
   if (!isInitialized) constructor();
 
@@ -519,43 +491,22 @@ Playback:&ensp;
      <meter ref={peakMeter} min={-36} high={-3} max={10} value={meterValue}
      style={{width: '20%'}}></meter>&nbsp;10, Peak {meterPeak.toFixed(1)}
      <br/>
-     Monitor: &emsp;<input type='range' name='monitorVolume'
+     Vocal&nbsp;&nbsp;&nbsp;&nbsp;(dB): &emsp;<input type='range' name='monitorVolume'
          min={-60} max={12} step={0.1}
          value ={monitorVolume} onChange = {handleVolume} /> 
        &nbsp;{monitorVolume.toFixed(2)}
-     &emsp;&emsp;
-     Karaoke: &emsp;<input type='range' name='karaokeVolume'
+     <br/>
+     Karaoke(dB): &emsp;<input type='range' name='karaokeVolume'
         min={-60} max={12} step={0.01}
        value ={karaokeVolume} onChange = {handleVolume} /> 
        &nbsp;{karaokeVolume.toFixed(2)}<br/>
+     Delay(msec): &emsp;<input type='range' name='mixKaraokeDelay'
+        min={0} max={150} step={1}
+       value ={mixKaraokeDelay} onChange = {handleDelay} /> 
+       &nbsp;{mixKaraokeDelay}
     <hr/>
- {/* 
-   <div>
-     Mix:&emsp;
-     Vocal:&nbsp;
-     <span>
-     <button name="vocalSub" className="tinyButton"
-      onClick={handleMixerSettings} >-</button>
-     &nbsp;{mixVocalGain}&nbsp;
-     <button name="vocalAdd" className="tinyButton"
-      onClick={handleMixerSettings} >+</button>&nbsp;|
-     Karaoke:&nbsp;
-     <button name="karaokeSub" className="tinyButton"
-      onClick={handleMixerSettings} >-</button>
-     &nbsp;{mixKaraokeGain}&nbsp;
-     <button name="karaokeAdd" className="tinyButton"
-      onClick={handleMixerSettings} >+</button>&nbsp;
-    | KaraokeDelay:&nbsp;
-     <button name="karaokeDelaySub" className="tinyButton"
-      onClick={handleMixerSettings} >-</button>
-     &nbsp;{mixKaraokeDelay} msec&nbsp;
-     <button name="karaokeDelayAdd" className="tinyButton"
-      onClick={handleMixerSettings} >+</button>
-    </span>
-    <hr/>
-    </div>
-*/}
-      <video ref={videoRef} id="monitorVideo" autoPlay muted
+
+    <video ref={videoRef} id="monitorVideo" autoPlay muted
        playsInline style={{width: '100%'}} />
     </div>
 
