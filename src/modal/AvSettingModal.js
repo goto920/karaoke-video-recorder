@@ -3,7 +3,8 @@ import React, {useCallback, useState} from 'react';
 export default function AvSettingModal(props) {
   // read only
 
-  const [current,setCurrent] = useState(props.mediaDeviceList);
+  // const [current,setCurrent] = useState(props.mediaDeviceList);
+  const current = props.mediaDeviceList;
   const currentAv = props.avSettings;
   const setMediaDevice = props.setMediaDevice; // callback
 
@@ -24,8 +25,7 @@ export default function AvSettingModal(props) {
   const [echoCancellation, setEchoCancellation] 
     = useState(currentAv.echoCancellation);
   const karaokeFile 
-    = currentAv.karaokeFile ? currentAv.karaokeFile.name : 'none';
-
+    = currentAv.karaokeFile ? currentAv.karaokeFile.name : '';
 
   const handleSelect = useCallback(async (event) => {
     const {name, value} = event.target;
@@ -37,7 +37,8 @@ export default function AvSettingModal(props) {
         deviceId: {exact: value},
         autoGainControl: autoGainControl,
         noiseSuppression: noiseSuppression,
-        echoCancellation: echoCancellation
+        echoCancellation: echoCancellation,
+        latency: {ideal: 0.0}
       };
       setMediaDevice('audioinput',audioConstraints);
       setAudioInput(value);

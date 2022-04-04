@@ -1,24 +1,5 @@
 /* MediaDevices manipulation */
 
-/*
-export async function recordStream(stream){
-
-  const options = {
-    audioBitsPersecond: 128000,
-    videoBitsPerSecond: 128000,
-    mimeType: 'video/webm'
-  };
-
-  this.blob = [];
-  this.recorder = new MediaRecorder(stream, options);
-
-  this.recorder.onstop = (e) => {
-    return new Blob(this.blob, {type: this.blob[0].type});
-  };  
-  this.recorder.ondataavailable = (e) => { this.blob.push(e.data); };
-}
-*/
-
 export async function getMediaDeviceList(currentList){
 
  let stream = null;
@@ -54,11 +35,6 @@ export async function getMediaDeviceList(currentList){
           + device.deviceId, "label: " + device.label);
 
     });
-
-/*
-   console.log('enumarated devices', 
-        {audioInputDevices, videoInputDevices, audioOutputDevices});
-*/
 
    return {
      audioInputDevices: audioInputDevices,
@@ -96,14 +72,16 @@ export async function getScreenCaptureAudioTrack(){
   return null;
 }
 
-export async function getMonitorTrack(deviceId){
+export async function getMonitorTrack(deviceId){ // audio only
 
   const audioConstraints = {
     video: false, 
     audio: { deviceId: {exact: deviceId},
           autoGainControl: false, 
-          echoCancellation: false, noiseSuppression: false
-           }
+          echoCancellation: false, 
+          noiseSuppression: false,
+          latency: {ideal: 0}
+    }
   };
 
   try {
@@ -118,8 +96,10 @@ export async function getMonitorTrack(deviceId){
 
 } // End getMonitorTrack()
 
-export async function getMicTrack(audioConstraints){
+export async function getMicTrack(audioConstraints){ // audio
 
+  const ac = audioConstraints;
+  ac.channelCount = 2; // stereo
   const constraints = {
     video: false,
     audio: audioConstraints

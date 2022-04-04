@@ -6,7 +6,7 @@ export default class StreamRecorder {
   constructor(stream){
 
     const options = {
-      audioBitsPersecond: 256000,
+      audioBitsPersecond: 510000
 //      videoBitsPerSecond: 128000,
     };
 //      mimeType: 'video/webm' // let the recorder decide

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+</head>
+<body>
+<button id="record">Record</button> &emsp;
+<button id="playback">Playback</button>
+<hr>
+Input file<input id="file" type="file">
+<script>
+// import clicks from "./clicks.mp3";
+
+const sleep = msec => new Promise(resolve => setTimeout(resolve, msec));
+const file = document.getElementById("file");
+const record = document.getElementById("record");
+const playback = document.getElementById("playback");
+
+window.AudioContext = window.AudioContext || window.webkitAudioContext;
+const ctx = new AudioContext();
+
+async function openMedia() { 
+  let stream = null;
+  const constraints = {
+      video: {
+        width: {ideal: 1920}, height: {ideal: 1080}
+      },
+      audio: {
+        autoGainControl: false,
+        noiseSuppression: false,
+        echoCancellation: false,
+        latency: {ideal: 0.0}
+      }
+   };
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia(constraints);
+    return stream;
+  } catch(err) {console.error(err);}
+    
+}
+
+async function loadFile(file){
+
+  const reader = new FileReader();
+  let retval = undefined;
+  reader.onload = (event) => {
+    try {
+      ctx.decodeAudioData(reader.result,
+       (buffer) => retval = buffer, 
+       (err) => console.error(err));
+    } catch (err) {console.log(err)}
+  };
+
+  reader.readAsArrayBuffer(file);
+  while (retval === undefined) await sleep(100);
+  return retval;
+}
+
+function playAudio(audioBuffer) {
+  const clicks = ctx.createBufferSource();
+  clicks.buffer = audioBuffer;
+  clicks.connect(ctx.destination);
+  clicks.start();
+}
+
+let audioBuffer = null;
+file.onchange = async (event) => {
+  audioBuffer = await loadFile(event.target.files[0]);
+  console.log(audioBuffer);
+  playAudio(audioBuffer);
+};
+
+
+record.onclick = (e) => {
+};
+
+playback.onclick = (e) => {
+};
+
+let stream = null;
+async function init(){
+  stream = await openMedia();
+  console.log(stream.getTracks());
+}
+
+init();
+
+</script>
+</body>
+</html>

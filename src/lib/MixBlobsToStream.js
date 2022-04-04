@@ -1,4 +1,3 @@
-import WAAClock from 'waaclock';
 import {sleep} from './sleep.js';
 
 export default class MixBlobsToStream {
@@ -11,7 +10,6 @@ export default class MixBlobsToStream {
     this.karaokeFile = karaokeFile;
     this.vocalGain = vocalGain; // dB 
     this.karaokeGain = karaokeGain; // dB
-    this.waaClock = null;
     this.outputStream = null;
 
     this.init = this.init.bind(this);
@@ -19,8 +17,6 @@ export default class MixBlobsToStream {
     this.startAt = this.startAt.bind(this);
     this.setVocalGain = this.setVocalGain.bind(this);
     this.setKaraokeGain = this.setKaraokeGain.bind(this);
-
-    // this.init();
 
    }
 
@@ -52,17 +48,12 @@ export default class MixBlobsToStream {
      reader.readAsArrayBuffer(file);
 
      while (retval === undefined) await sleep(100);
-     // console.log('decode() retval', retval);
 
      return retval;
    }
 
   
   async init(){
-    if (this.waaClock === null) {
-      this.waaClock = new WAAClock(this.ctx);
-      this.waaClock.start();
-    }
 
     // console.log('decode', this.karaokeFile);
     this.karaoke = this.ctx.createBufferSource();
@@ -98,19 +89,6 @@ export default class MixBlobsToStream {
 
   startAt(msec){
     if (this.vocal !== undefined && this.karaoke !== undefined) {
-
-/*
-      this.waaClock.setTimeout((e) => {
-         // console.log('vocal start')
-         this.vocal.start();
-         }, 1.0); 
-
-      this.waaClock.setTimeout((e) => {
-         // console.log('karaoke start')
-         this.karaoke.start()
-         }, 1.0 + msec/1000);
-*/
-
       const offset = 0, duration = this.vocal.buffer.duration; 
       const leadTime = 1.0;
       const when = this.ctx.currentTime + leadTime;
@@ -123,7 +101,6 @@ export default class MixBlobsToStream {
     try {
       this.karaoke.stop();
       this.vocal.stop();
-      this.waaClock.stop();
     } catch (err){}
   }
 

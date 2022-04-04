@@ -15,11 +15,9 @@ import CaptureStreamFromVideoBlob from './lib/CaptureStreamFromVideoBlob.js';
 import packageJSON from '../package.json';
 import AvSettingModal from './modal/AvSettingModal.js';
 import CaptureAudioModal from './modal/CaptureAudioModal.js';
+import estimateLatency from './lib/estimateLatency.js';
 
 // https://stackoverflow.com/questions/44360301/web-audio-api-creating-a-peak-meter-with-analysernode
-
-// const showExperimental = false;  // for hiding unimplemented controls
-const showExperimental = true;  // for hiding unimplemented controls
 
 // Global constants
 const mediaDeviceList = 
@@ -50,8 +48,6 @@ const karaokeVolumeCtl
 let gainAndMeter = undefined;
 let monitorRecorder = null;
 let monitorBlob = null;
-let monitorAudioRecorder = null;
-let monitorAudioBlob = null;
 let captureRecorder = null;
 let captureBlob = null;
 let mixBlob = null;
@@ -82,7 +78,6 @@ function App() {
 
   const [recordDisabled, setRecordDisabled] = useState(true);
   const [exportDisabled, setExportDisabled] = useState(true);
-  const [exportMixDisabled, setExportMixDisabled] = useState(true);
 
   // references
 
@@ -232,7 +227,6 @@ function App() {
 
       if (monitorRecorder) {
         monitorBlob = await monitorRecorder.stop();
-        // monitorAudioBlob = await monitorAudioRecorder.stop();
         console.log('monitorBlob', monitorBlob);
         monitorRecorder = undefined;
       }
@@ -267,15 +261,12 @@ function App() {
 // set recorders   
     monitorRecorder = null;
     monitorBlob = null; 
-    monitorAudioRecorder = null;
-    monitorAudioBlob = null; 
 
     if (numMonitorTracks > 0) {
+      videoRef.current.muted = true;
       monitorRecorder = new StreamRecorder(monitorStream);
-    //  monitorAudioRecorder = new StreamRecorder(monitorAudioStream);
       await sleep(3000); // 3 sec interval
       monitorRecorder.start();
-    //  monitorAudioRecorder.start();
     }
     try {
       await karaokePlayerAudio.play();
@@ -360,7 +351,6 @@ function App() {
 
     const seconds = Math.floor(Date.now()/1000);
     exportRecordedBlob(monitorBlob, 'monitor_' + seconds);
-    // exportRecordedBlob(monitorAudioBlob, 'monitorAudio_' + seconds);
     exportRecordedBlob(mixBlob, 'mix_' + seconds);
 
   };
@@ -467,43 +457,50 @@ function App() {
      if(mixer) mixer.setKaraokeDelay(delay);
   };
 
+  const handleAutoAdjust = async (e) => {
+    const latencyHint = await estimateLatency(ctx,monitorStream);
+    console.log('latencyHint',latencyHint);
+    setMixKaraokeDelay(latencyHint); 
+  }
+
   if (!isInitialized) constructor();
 
   return (
     <div className="App">
     <b>KG's Karaoke Video Recorder</b><br/>
-    Screen Audio Capture: &emsp;
+    Need karaoke file?<br/>
+    Try screen Audio Capture: &emsp;
     <button onClick={(e) => setShowCapture(!showCapture)}>Show/Hide</button>
 
   { showCapture &&
     <div>
-    <button name="set" className="smallButton" 
+    <button name="set"
       onClick={handleScreenCapture}>Set</button> &emsp;
-    <button name="record" className="smallButton" 
+    <button name="record"
       onClick={handleScreenCapture}
        style={{backgroundColor: isCapturing ? '#55ff55' : '#eeeeee' }} >
     {isCapturing ? 'Stop' : 'Record'}</button> &emsp;
-    <button name="export" className="smallButton"
+    <button name="export"
       onClick={handleScreenCapture}>Export</button> &emsp;
     </div>
   }
     <hr/>
     <span>
 (Skip 3, if you use a video editor.)<br/>
-    1) <button className="button"
+    1) <button 
       name="avSetting" onClick={openAvSettings}>Set</button>
     &ensp; 
-    2) <button className="button" disabled={recordDisabled}
+    2) <button disabled={recordDisabled}
        name="record" onClick={startRecording} 
        style={{backgroundColor: isRecording ? '#55ff55' : '#eeeeee' }} >
       {isRecording ? 'Stop' : 'Rec'}</button>
     &ensp; 
-    3) <button className="button" disabled={exportDisabled}
+    3) <button disabled={exportDisabled}
        name="playback" onClick={playback}
        style={{backgroundColor: isPlaying ? '#55ff55' : '#eeeeee' }} >
       {isPlaying ? 'Stop' : 'Play'}</button>
     &ensp; 
-    4) <button className="button" disabled={exportDisabled}
+    4) <button disabled={exportDisabled}
        name="export" 
        onClick={exportFiles}>Export</button>
     </span>
@@ -515,7 +512,7 @@ function App() {
        &nbsp;{ micGain >= 0 ? 
           "+" + ('000' + Math.abs(micGain)).slice(-2)
           : "-" + ('000' + Math.abs(micGain)).slice(-2) }<br/>
-     &nbsp; <button className='smallButton'
+     &nbsp; <button 
           onClick={(e) => meterPeakGlobal = -60}>Reset peak</button>
      &nbsp;&nbsp;-36&nbsp;
      <meter ref={peakMeter} min={-36} high={-3} max={10} value={meterValue}
@@ -530,9 +527,11 @@ function App() {
         min={-60} max={12} step={0.01}
        value ={karaokeVolume} onChange = {handleVolume} /> 
        &nbsp;{karaokeVolume.toFixed(2)}<br/>
-     Delay(msec): &emsp;<input type='number' name='mixKaraokeDelay'
-        min={0} max={150} step={1}
+     RecLatency(msec): &emsp;<input type='number' name='mixKaraokeDelay'
+        min={0} max={150} step={1} style={{width:"20%"}}
        value ={mixKaraokeDelay} onChange = {handleDelay} /> 
+     &emsp;
+     <button onClick={handleAutoAdjust}>AutoAdjust</button>
     <hr/>
 
     <video ref={videoRef} id="monitorVideo" autoPlay muted
