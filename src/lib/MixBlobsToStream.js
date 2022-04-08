@@ -8,9 +8,13 @@ export default class MixBlobsToStream {
     this.ctx = ctx;
     this.videoBlob = videoBlob;
     this.karaokeFile = karaokeFile;
+    this.karaoke = undefined;
     this.vocalGain = vocalGain; // dB 
     this.karaokeGain = karaokeGain; // dB
+
     this.outputStream = null;
+    this.vocalGainNode = undefined;
+    this.karaokeGainNode = undefined;
 
     this.init = this.init.bind(this);
     this.stop = this.stop.bind(this);
@@ -21,7 +25,7 @@ export default class MixBlobsToStream {
    }
 
    setVocalGain(dB){ // dB
-     // console.log('Vocal Gain: ', dB);
+     // console.log('Set Vocal Gain: ', dB);
      if(this.vocalGainNode) 
        this.vocalGainNode.gain.value = Math.pow(10,dB/20);
    }
@@ -54,11 +58,14 @@ export default class MixBlobsToStream {
 
   
   async init(){
+    await this.ctx.resume();
 
-    // console.log('decode', this.karaokeFile);
-    this.karaoke = this.ctx.createBufferSource();
-    this.karaoke.buffer = await this.decode(this.karaokeFile);
+    if (this.karaokeFile) {
+      // console.log('decode', this.karaokeFile);
+      this.karaoke = this.ctx.createBufferSource();
+      this.karaoke.buffer = await this.decode(this.karaokeFile);
     // console.log('decoded', this.karaoke.buffer);
+    }
 
     this.vocal = this.ctx.createBufferSource();
     this.vocal.buffer = await this.decode(this.videoBlob);
@@ -69,15 +76,16 @@ export default class MixBlobsToStream {
 
     this.vocalGainNode = new GainNode(this.ctx);
     this.setVocalGain(this.vocalGain);
-
-    this.karaokeGainNode = new GainNode(this.ctx);
-    this.setKaraokeGain(this.karaokeGain);
-
-    this.karaoke.connect(this.karaokeGainNode);
-    this.karaokeGainNode.connect(dest);
-
     this.vocal.connect(this.vocalGainNode);
     this.vocalGainNode.connect(dest);
+
+    if (this.karaokeFile) {
+      this.karaokeGainNode = new GainNode(this.ctx);
+      this.setKaraokeGain(this.karaokeGain);
+      this.karaoke.connect(this.karaokeGainNode);
+      this.karaokeGainNode.connect(dest);
+    }
+
 
     this.outputStream = dest.stream;
   } // end init()
@@ -88,18 +96,19 @@ export default class MixBlobsToStream {
   }
 
   startAt(msec){
-    if (this.vocal !== undefined && this.karaoke !== undefined) {
+    if (this.vocal !== undefined || this.karaoke !== undefined) {
       const offset = 0, duration = this.vocal.buffer.duration; 
       const leadTime = 1.0;
       const when = this.ctx.currentTime + leadTime;
       this.vocal.start(when);
-      this.karaoke.start(when + msec/1000, offset, duration);
+      if (this.karaokeFile)
+        this.karaoke.start(when + msec/1000, offset, duration);
     } else {console.log('Data Not ready');}
   } 
 
   stop(){
     try {
-      this.karaoke.stop();
+      if (this.karaokeFile) this.karaoke.stop();
       this.vocal.stop();
     } catch (err){}
   }

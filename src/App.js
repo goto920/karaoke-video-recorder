@@ -9,7 +9,7 @@ import * as mediaUtils from './lib/mediaDeviceUtils.js';
 import StreamRecorder from './lib/StreamRecorder.js';
 import exportRecordedBlob from './lib/exportRecordedBlob.js';
 import GainAndMeter from './lib/GainAndMeter.js';
-import VolumeControl from './lib/VolumeControl.js';
+// import VolumeControl from './lib/VolumeControl.js';
 import MixBlobsToStream from './lib/MixBlobsToStream.js';
 import CaptureStreamFromVideoBlob from './lib/CaptureStreamFromVideoBlob.js';
 import packageJSON from '../package.json';
@@ -35,15 +35,14 @@ const avSettings = {
 };
 
 const monitorStream = new MediaStream();
-const monitorAudioStream = new MediaStream();
+// const monitorAudioStream = new MediaStream();
 const captureStream = new MediaStream();
 const karaokePlayerAudio = new Audio();
 karaokePlayerAudio.id = "karaokePlayerAudio";
 
 const ctx = new (window.AudioContext || window.webkitAudioContext) ();
 const supportedConstraints = navigator.mediaDevices.getSupportedConstraints();
-const karaokeVolumeCtl 
-  = new VolumeControl(ctx, karaokePlayerAudio, -6);
+// const karaokeVolumeCtl = new VolumeControl(ctx, karaokePlayerAudio, -6);
 
 let gainAndMeter = undefined;
 let monitorRecorder = null;
@@ -56,7 +55,7 @@ let blobCapture = undefined;
 let mixerRecorder = undefined;
 let meterPeakGlobal = -60;
 let captureDeviceId = undefined;
-let monitorVolumeCtl = undefined;
+// let monitorVolumeCtl = undefined;
 
 function App() {
 
@@ -118,8 +117,8 @@ function App() {
         || videoRef.current.srcObject === null){
        videoRef.current.srcObject = monitorStream;
        videoRef.current.load();
-       monitorVolumeCtl = new VolumeControl(
-         ctx, videoRef.current, monitorVolume);
+       // videoRef.current.volume = 0;
+    //   monitorVolumeCtl = new VolumeControl(ctx, videoRef.current, monitorVolume);
     }
 
     if (command === 'audioinput'){ 
@@ -145,8 +144,8 @@ function App() {
 
       const processedAudioTrack = gainAndMeter.getOutputTrack();
       // console.log('gainAndMeter', processedAudioTrack);
+      handleVolume ({target: {name: 'monitorVolume', value: -60}})
       monitorStream.addTrack(processedAudioTrack);
-      monitorAudioStream.addTrack(processedAudioTrack);
 
       setRecordDisabled(false);
 
@@ -245,7 +244,8 @@ function App() {
  // prepare stream
 
 // set players
-   if (avSettings.karaokeFile !== undefined) {
+   // console.log('karaokeFile', avSettings.karaokeFile);
+   if (avSettings.karaokeFile) {
      karaokePlayerAudio.pause(); // no GUI
      karaokePlayerAudio.src = URL.createObjectURL(avSettings.karaokeFile);
    }
@@ -263,14 +263,18 @@ function App() {
     monitorBlob = null; 
 
     if (numMonitorTracks > 0) {
-      videoRef.current.muted = true;
+      // videoRef.current.volume = 0;
       monitorRecorder = new StreamRecorder(monitorStream);
       await sleep(3000); // 3 sec interval
       monitorRecorder.start();
     }
-    try {
-      await karaokePlayerAudio.play();
-    } catch (err) {console.error(err);}
+
+    if (avSettings.karaokeFile) {
+      try {
+        karaokePlayerAudio.volume = 1.0;
+        await karaokePlayerAudio.play();
+      } catch (err) {console.error(err);}
+    }
 
     setIsRecording(true);
     return;
@@ -287,7 +291,7 @@ function App() {
         mixer = null;
         if (blobCapture) blobCapture.stop();
         blobCapture = null;
-        videoRef.current.muted = true; 
+        handleVolume ({target: {name: 'monitorVolume', value: -60}})
         videoRef.current.srcObject = monitorStream;
       }
 
@@ -301,14 +305,18 @@ function App() {
       console.log('start playback mix');
 
       try {
-        videoRef.current.muted = true;
+        videoRef.current.volume = 0;
         videoRef.current.pause();
         videoRef.current.srcObject = null;
 
-        setMonitorVolume(-6);
+        let vocalVolume = monitorVolume;
+        if (monitorVolume < -50){ 
+           vocalVolume = -6;
+           handleVolume ({target: {name: 'monitorVolume', value: -6}})
+        }
         mixer = new MixBlobsToStream(ctx, 
            monitorBlob, avSettings.karaokeFile, 
-           monitorVolume, karaokeVolume);
+           vocalVolume, karaokeVolume);
         await mixer.init();
 
         const mixerStream = await mixer.getStream();
@@ -323,8 +331,6 @@ function App() {
         mixerRecorder = new StreamRecorder(stream);
 
         videoRef.current.srcObject = stream;
-        videoRef.current.muted = false;
-        videoRef.current.volume = 1.0;
 
       // start audio and video
         mixer.startAt(mixKaraokeDelay); // 1000 msec lead time internally
@@ -349,9 +355,13 @@ function App() {
   const exportFiles = (event) => {
     if (isPlaying || isRecording) return;
 
-    const seconds = Math.floor(Date.now()/1000);
-    exportRecordedBlob(monitorBlob, 'monitor_' + seconds);
-    exportRecordedBlob(mixBlob, 'mix_' + seconds);
+    // const seconds = Math.floor(Date.now()/1000);
+    const now = new Date(Date.now());
+    const dateString = now.toISOString();
+    // console.log(dateString);
+
+    exportRecordedBlob(monitorBlob, 'monitor_' + dateString);
+    exportRecordedBlob(mixBlob, 'mix_' + dateString);
 
   };
 
@@ -360,15 +370,22 @@ function App() {
     const volume = parseFloat(event.target.value);
 
     if (name === 'monitorVolume'){ // in dB
-      setMonitorVolume(volume);
-      if (monitorVolumeCtl) {
-        if (mixer) mixer.setVocalGain(volume);
-        else monitorVolumeCtl.setVolume(volume);
-      } 
+
+      if (mixer) { 
+        mixer.setVocalGain(volume);
+        setMonitorVolume(volume); // UI
+      } else {
+        videoRef.current.volume = Math.min(1.0,Math.pow(10,volume/20));
+        setMonitorVolume(Math.min(0,volume)); // UI
+      }
     } else if (name === 'karaokeVolume'){
-      setKaraokeVolume(volume);
-      if (karaokeVolumeCtl) karaokeVolumeCtl.setVolume(volume);
-      if (mixer) mixer.setKaraokeGain(volume);
+      if (mixer) {
+        mixer.setKaraokeGain(volume);
+        setKaraokeVolume(volume); // UI
+      } else {
+        karaokePlayerAudio.volume = Math.min(1.0,Math.pow(10,volume/20));
+        setKaraokeVolume(Math.min(0,volume)); // UI
+      }
     }
   };
 
@@ -458,7 +475,8 @@ function App() {
   };
 
   const handleAutoAdjust = async (e) => {
-    const latencyHint = await estimateLatency(ctx,monitorStream);
+    const latencyHint = await estimateLatency(ctx,monitorStream,
+      karaokePlayerAudio);
     console.log('latencyHint',latencyHint);
     setMixKaraokeDelay(latencyHint); 
   }
@@ -528,13 +546,13 @@ function App() {
        value ={karaokeVolume} onChange = {handleVolume} /> 
        &nbsp;{karaokeVolume.toFixed(2)}<br/>
      RecLatency(msec): &emsp;<input type='number' name='mixKaraokeDelay'
-        min={0} max={150} step={1} style={{width:"20%"}}
+        min={0} max={1000} step={1} style={{width:"20%"}}
        value ={mixKaraokeDelay} onChange = {handleDelay} /> 
      &emsp;
      <button onClick={handleAutoAdjust}>AutoAdjust</button>
     <hr/>
 
-    <video ref={videoRef} id="monitorVideo" autoPlay muted
+    <video ref={videoRef} id="monitorVideo" autoPlay
        playsInline style={{width: '100%'}} />
     </div>
 

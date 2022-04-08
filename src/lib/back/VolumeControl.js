@@ -22,7 +22,6 @@ export default class VolumeControl {
    }
 
    init(){
-     this.mediaElement.volume = 1;
      // this.mediaElement.muted = true;
 
      this.gainNode = new GainNode(this.ctx, 
@@ -30,6 +29,7 @@ export default class VolumeControl {
      this.source = this.ctx.createMediaElementSource(this.mediaElement);
      this.source.connect(this.gainNode);
      this.gainNode.connect(this.ctx.destination);
+
    } // end init()
 
    stop(){

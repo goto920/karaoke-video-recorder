@@ -3,7 +3,7 @@ import StreamRecorder from './StreamRecorder.js';
 import clicks from './clicks.mp3';
 import findLatency from './findLatency.js';
 
-export default async function estimateLatency(ctx,monitorStream) {
+export default async function estimateLatency(ctx,monitorStream,playbackAudio) {
 
   const audioTracks = monitorStream.getAudioTracks();
   if (!audioTracks[0].enabled) return -1; // not ready
@@ -40,10 +40,14 @@ export default async function estimateLatency(ctx,monitorStream) {
   } // end decode()
 
   async function playBuffer(audioBuffer){ // for debug
+    const dest = ctx.createMediaStreamDestination();
     const source = ctx.createBufferSource();
     source.buffer = audioBuffer;
-    source.connect(ctx.destination);
+    source.connect(dest);
+
+    playbackAudio.srcObject = dest.stream;
     await source.start();
+    await playbackAudio.play();
 
     let complete = false;
     source.onended = (event) => {complete = true;};

@@ -1,4 +1,5 @@
 import React, {useCallback, useState} from 'react';
+import '../App.css';
 
 export default function AvSettingModal(props) {
   // read only
@@ -117,7 +118,7 @@ export default function AvSettingModal(props) {
 
   return (
     <div>
-      Select at least one of video/audio/karaoke
+      Select one or both of video or audio.
       <hr/>
       <div>
        <b>VideoInput:</b> &emsp;
@@ -133,13 +134,16 @@ export default function AvSettingModal(props) {
      </div>
      <hr/>
      <div>
+      <p>
       <b>AudioInput:</b> &emsp;
       <select name="audioInput" 
          value={audioInput} onChange={handleSelect}>
       <option key ='-1' value='none'>None</option>
       {current.audioInputDevices.map((device, index) =>
          <option key={index} value={device.deviceId} >{device.label}</option>)}
-      </select><br/><br/>
+      </select>
+      </p>
+    Options: &emsp;
     <button name="autoGainControl" 
       style={{backgroundColor: autoGainControl ? '#55ff55' : '#eeeeee' }}
       onClick={handleClick} >AutoGain</button>&emsp;

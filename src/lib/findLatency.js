@@ -21,7 +21,10 @@ export default function findRecordingLatency (ctx, clicks, recorded){
     }
 
     // normalize and mean square
-    const max = Math.max(...mono);
+    // const max = Math.max(...mono);
+    let max = 0;
+    for (let i=0; i < mono.length; i++) if (mono[i] > max) max = mono[i];
+
     // console.log(max);
     for (let i = 0; i < mono.length; i++) {
       mono[i] /= max;
@@ -38,7 +41,7 @@ export default function findRecordingLatency (ctx, clicks, recorded){
   let max = 0;
   let found = 0;
   const len = Math.min(power[0].length, power[1].length);
-  for (let shift = 0; shift < 200; shift++){ // 200 msec
+  for (let shift = 0; shift < 1000; shift++){ // 200 msec -> 1000
     let sum = 0.0;
     for (let i = 0; shift + i < len; i++)
       sum += power[0][i]*power[1][shift + i];
