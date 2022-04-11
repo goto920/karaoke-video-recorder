@@ -21,6 +21,7 @@ export default class CaptureStreamFromVideoBlob {
       this.video = document.createElement("video"); 
       this.video.src = URL.createObjectURL(this.blob);
       this.video.load();
+      this.video.muted = true; // can capture muted audio?
 
       this.video.oncanplaythrough = (e) => {
         try {
@@ -41,7 +42,7 @@ export default class CaptureStreamFromVideoBlob {
 
   async start(msec) {
     await sleep(msec);
-    this.video.play();
+    await this.video.play();
   }
 
   async getStream(){

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  canvas { border: 1px solid black; }
+</style>
+</head>
+<body>
+<h1>(test) draw waveform on canvas from audio file</h1>
+<input id="inputFile" type="file" />
+<hr>
+<canvas id="waveform" width="800 height="200"></canvas>
+
+<script>
+const canvas = document.getElementById('waveform');
+const inputFile = document.getElementById('inputFile');
+const audioCtx = new AudioContext();
+
+function loadFile (e) {
+  const file = e.target.files[0];
+  const reader = new FileReader();
+
+  reader.onload = (e) => {
+    audioCtx.decodeAudioData(reader.result)
+      .then((decodeData) => {
+        drawWaveform(decodeData);
+      }); 
+    audioCtx.close();
+  }
+
+  reader.readAsArrayBuffer(file);
+}
+
+function drawWaveform (audioBuffer){
+  console.log('drawWaveform: ',audioBuffer);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'green';
+  ctx.fillRect(10,10,150,100);
+}
+
+inputFile.addEventListener('change', loadFile, false);
+
+</script>
+<hr>
+Ref: 
+https://css-tricks.com/making-an-audio-waveform-visualizer-with-vanilla-javascript/
+</body>
+</html>
