@@ -175,10 +175,10 @@ function App() {
 
     if (command === 'audioOutput'){ 
       avSettings.audioOutput = value;
-
       try { 
         await videoRef.current.setSinkId(value.deviceId);
         await karaokePlayerAudio.setSinkId(value.deviceId);
+        console.log('audioOutput', value);
         return;
       } catch (err) {console.error(err);}
     }

@@ -22,12 +22,11 @@ export default class GainAndMeter {
 
   setupIOStream(){
 
-    if(this.ctx.state === 'suspended') this.ctx.resume();
+    this.ctx.resume();
 
-    const source = this.ctx.createMediaStreamSource(
-          new MediaStream([this.inputTrack]));
-    // const source = this.ctx.createMediaStreamTrackSource(this.inputTrack);
+    const source = this.ctx.createMediaStreamTrackSource(this.inputTrack);
     this.destination = this.ctx.createMediaStreamDestination();
+
     this.gainNode = new GainNode(this.ctx);
     this.gainNode.gain.value = Math.pow(10, this.gain/20); // dB
 

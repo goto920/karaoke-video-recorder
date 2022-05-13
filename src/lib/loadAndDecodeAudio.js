@@ -1,6 +1,6 @@
 // import {sleep} from './sleep.js';
 
-export default async function loadAndDecodeAudio(ctx,blob) {
+export default async function loadAndDecodeAudio(ctx,file) {
 
   let data = undefined;
   if (typeof file === "object"){
@@ -13,17 +13,14 @@ export default async function loadAndDecodeAudio(ctx,blob) {
   const reader = new FileReader();
   reader.readAsArrayBuffer(data);
 
-  let retval = undefined;
-  await new Promise((resolve) => {
+  return new Promise((resolve) => {
       try {
         reader.onload = (e) => {
           ctx.decodeAudioData(
             reader.result,
-            (audioBuffer) => retval = audioBuffer,
+            (audioBuffer) => resolve(audioBuffer),
             (err) => console.error(err));
         } 
       } catch (err) {console.error(err)}
   });
-
-  return retval;
 } 
