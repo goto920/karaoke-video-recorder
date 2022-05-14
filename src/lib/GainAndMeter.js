@@ -24,7 +24,12 @@ export default class GainAndMeter {
 
     this.ctx.resume();
 
+/* Firefox only 
     const source = this.ctx.createMediaStreamTrackSource(this.inputTrack);
+ */
+    const source 
+      = this.ctx.createMediaStreamSource(new MediaStream([this.inputTrack]));
+
     this.destination = this.ctx.createMediaStreamDestination();
 
     this.gainNode = new GainNode(this.ctx);
