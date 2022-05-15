@@ -528,8 +528,8 @@ function App() {
          min={-24} max={24} step={1}
          value ={micGain} onChange = {handleMicGain} /> 
        &nbsp;{ micGain >= 0 ? 
-          "+" + ('000' + Math.abs(micGain)).slice(-2)
-          : "-" + ('000' + Math.abs(micGain)).slice(-2) }<br/>
+          "+" + ('0000' + Math.abs(micGain)).slice(-2)
+          : "-" + ('0000' + Math.abs(micGain)).slice(-2) }<br/>
      &nbsp; <button 
           onClick={(e) => meterPeakGlobal = -60}>Reset peak</button>
      &nbsp;&nbsp;-36&nbsp;

@@ -40,7 +40,8 @@ export default class GainAndMeter {
 
     source.connect(this.gainNode);
     this.gainNode.connect(this.analyserNode);
-    this.analyserNode.connect(this.destination);
+    this.gainNode.connect(this.destination);
+ // this.analyserNode.connect(this.destination);
 
     this.loop();
   }
