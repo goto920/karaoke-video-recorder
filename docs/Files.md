@@ -1,7 +1,7 @@
 # Source Program Files #
 
 ...
-.
+src
 ├── App.js
 ├── index.js
 ├── lib
