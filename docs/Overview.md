@@ -4,7 +4,7 @@
 Clicking "Set" button will open the modal window.
 Choose one camera input, one audio input, and optionally one karaoke file.
 
-## Signal Path ##
+## Signal Path for recording ##
 ![SignalPath](./SignalPath.png)
 
 ## Sound quality ##
