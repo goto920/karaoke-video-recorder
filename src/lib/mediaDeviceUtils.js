@@ -5,6 +5,7 @@ export async function getMediaDeviceList(currentList){
  let stream = null;
  const current = currentList;
 
+/* // better to getUserMedia() ondevicechange event
  try {
      if (current.audioInputDevices.length === 0
         && current.videoInputDevices.length === 0
@@ -12,6 +13,10 @@ export async function getMediaDeviceList(currentList){
      stream 
        = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
      }
+*/
+
+     stream 
+       = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
 
 
    const newList = await navigator.mediaDevices.enumerateDevices();
