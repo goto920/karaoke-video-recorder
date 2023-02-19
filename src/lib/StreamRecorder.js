@@ -5,6 +5,7 @@ import {sleep} from './sleep.js';
 export default class StreamRecorder {
   constructor(stream){
 
+/*
     const vtracks = stream.getVideoTracks().length;
     const atracks = stream.getAudioTracks().length;
 
@@ -12,9 +13,10 @@ export default class StreamRecorder {
     if (vtracks && atracks) mimeType = 'video/webm;codecs=vp8,opus';
     else if (vtracks && atracks === 0) mimeType = 'video/webm;codecs=vp8';
     else if (vtracks === 0 && atracks) mimeType = 'audio/opus;codecs=opus';
+*/
 
     const options = {
-      mimeType: mimeType,
+//      mimeType: mimeType,
       audioBitsPersecond: 510000
 //      videoBitsPerSecond: 128000,
     };

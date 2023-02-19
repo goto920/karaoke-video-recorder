@@ -3,7 +3,7 @@
 export async function getMediaDeviceList(currentList){
 
  let stream = null;
- const current = currentList;
+//  const current = currentList;
 
 /* // better to getUserMedia() ondevicechange event
  try {
@@ -15,6 +15,7 @@ export async function getMediaDeviceList(currentList){
      }
 */
 
+try {
      stream 
        = await navigator.mediaDevices.getUserMedia({video: true, audio: true});
 

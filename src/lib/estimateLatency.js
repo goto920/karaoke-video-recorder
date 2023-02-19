@@ -39,6 +39,7 @@ export default async function estimateLatency(ctx,monitorStream,playbackAudio) {
      return retval;
   } // end decode()
 
+/*
   async function playBuffer(audioBuffer){ // for debug
     const dest = ctx.createMediaStreamDestination();
     const source = ctx.createBufferSource();
@@ -56,6 +57,7 @@ export default async function estimateLatency(ctx,monitorStream,playbackAudio) {
 
     return 0;
   }
+*/
 
 /* main program */
 

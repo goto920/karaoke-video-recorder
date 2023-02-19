@@ -280,8 +280,23 @@ function App() {
     return;
   };
 
+
   const playback = async (event) => {
     if (isRecording) return;
+
+
+/*
+    videoRef.current.onended = (event) => {
+       console.log("Video ended");
+       if (!mixer) return;
+       mixer.stop(); mixer = null;
+       if (blobCapture) blobCapture.stop();
+       blobCapture = null;
+       handleVolume ({target: {name: 'monitorVolume', value: -60}})
+       videoRef.current.srcObject = monitorStream;
+      setIsPlaying(false);
+    };
+*/
 
     if (isPlaying) {
       console.log('stop playback mix');
@@ -291,7 +306,7 @@ function App() {
         mixer = null;
         if (blobCapture) blobCapture.stop();
         blobCapture = null;
-        handleVolume ({target: {name: 'monitorVolume', value: -60}})
+        // handleVolume ({target: {name: 'monitorVolume', value: -60}})
         videoRef.current.srcObject = monitorStream;
       }
 
@@ -303,21 +318,19 @@ function App() {
       setIsPlaying(false);
     } else {
       console.log('start playback mix');
+      if (gainAndMeter) gainAndMeter.setMonitorVolume(-60);
 
       try {
         videoRef.current.volume = 0;
         videoRef.current.pause();
         videoRef.current.srcObject = null;
 
-        let vocalVolume = monitorVolume;
-        if (monitorVolume < -50){ 
-           vocalVolume = -6;
-           handleVolume ({target: {name: 'monitorVolume', value: -6}})
-        }
-        mixer = new MixBlobsToStream(ctx, 
-           monitorBlob, avSettings.karaokeFile, 
+        let vocalVolume = -6;
+
+        mixer = new MixBlobsToStream(ctx, monitorBlob, avSettings.karaokeFile, 
            vocalVolume, karaokeVolume);
         await mixer.init();
+        handleVolume ({target: {name: 'monitorVolume', value: vocalVolume}})
 
         const mixerStream = await mixer.getStream();
 
@@ -373,18 +386,25 @@ function App() {
 
       if (mixer) { 
         mixer.setVocalGain(volume);
-        setMonitorVolume(volume); // UI
+        videoRef.current.muted = false;
+        videoRef.current.volume = 1;
+        if (gainAndMeter) gainAndMeter.setMonitorVolume(-60);
       } else {
-        videoRef.current.volume = Math.min(1.0,Math.pow(10,volume/20));
-        setMonitorVolume(Math.min(0,volume)); // UI
+        // videoRef.current.volume = Math.min(1.0,Math.pow(10,volume/20));
+        videoRef.current.muted = true;
+        // videoRef.current.volume = 0;
+        if (gainAndMeter) gainAndMeter.setMonitorVolume(volume);
       }
+      setMonitorVolume(volume); // UI
+
     } else if (name === 'karaokeVolume'){
       if (mixer) {
         mixer.setKaraokeGain(volume);
         setKaraokeVolume(volume); // UI
       } else {
         karaokePlayerAudio.volume = Math.min(1.0,Math.pow(10,volume/20));
-        setKaraokeVolume(Math.min(0,volume)); // UI
+        // setKaraokeVolume(Math.min(0,volume)); // UI
+        setKaraokeVolume(volume); // UI
       }
     }
   };
@@ -536,16 +556,16 @@ function App() {
      <meter ref={peakMeter} min={-36} high={-3} max={10} value={meterValue}
      style={{width: '20%'}}></meter>&nbsp;10, Peak {meterPeak.toFixed(1)}
      <br/>
-     Vocal&nbsp;&nbsp;&nbsp;&nbsp;(dB): &emsp;<input type='range' name='monitorVolume'
+     Mon/Vo (dB): &emsp;<input type='range' name='monitorVolume'
          min={-60} max={12} step={0.1}
          value ={monitorVolume} onChange = {handleVolume} /> 
-       &nbsp;{monitorVolume.toFixed(2)}
+       &nbsp;{monitorVolume.toFixed(4)}
      <br/>
-     Karaoke(dB): &emsp;<input type='range' name='karaokeVolume'
+     Karaoke (dB): &emsp;<input type='range' name='karaokeVolume'
         min={-60} max={12} step={0.01}
        value ={karaokeVolume} onChange = {handleVolume} /> 
        &nbsp;{karaokeVolume.toFixed(2)}<br/>
-     RecLatency(msec): &emsp;<input type='number' name='mixKaraokeDelay'
+     Playback Compensation (msec): &emsp;<input type='number' name='mixKaraokeDelay'
         min={0} max={1000} step={1} style={{width:"20%"}}
        value ={mixKaraokeDelay} onChange = {handleDelay} /> 
      &emsp;

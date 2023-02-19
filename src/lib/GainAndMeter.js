@@ -8,12 +8,14 @@ export default class GainAndMeter {
     this.callback = callback;
     // initial
     this.gainNode = undefined;
+    this.monitirGainNode = undefined;
     this.gain = initialGain;
     this.analyserNode = undefined;
     this.destination = undefined;
 
     this.setupIOStream = this.setupIOStream.bind(this);
     this.setGain = this.setGain.bind(this);
+    this.setMonitorVolume = this.setMonitorVolume.bind(this);
     this.getOutputTrack = this.getOutputTrack.bind(this);
     this.loop = this.loop.bind(this);
 
@@ -34,6 +36,8 @@ export default class GainAndMeter {
 
     this.gainNode = new GainNode(this.ctx);
     this.gainNode.gain.value = Math.pow(10, this.gain/20); // dB
+    this.monitorGainNode = new GainNode(this.ctx);
+    this.monitorGainNode.gain.value = Math.pow(10, -100/20); // dB
 
     this.analyserNode = new AnalyserNode(this.ctx, {fftSize: 2048}); 
     // default 2048
@@ -41,7 +45,10 @@ export default class GainAndMeter {
     source.connect(this.gainNode);
     this.gainNode.connect(this.analyserNode);
     this.gainNode.connect(this.destination);
-    this.gainNode.connect(this.ctx.destination); // direct monitoring
+//    this.gainNode.connect(this.ctx.destination); // direct monitor
+
+    this.gainNode.connect(this.monitorGainNode);
+    this.monitorGainNode.connect(this.ctx.destination); // direct monitor
 
     this.loop();
   }
@@ -49,6 +56,11 @@ export default class GainAndMeter {
   setGain(gain){
     this.gainNode.gain.value = Math.pow(10,gain/20); // dB
 //    console.log('gain set', this.gainNode.gain.value);
+  }
+
+  setMonitorVolume(gain){
+    this.monitorGainNode.gain.value = Math.pow(10,gain/20); // dB
+   console.log('direct monitor Volume (dB, linear', gain, this.monitorGainNode.gain.value);
   }
 
   getOutputTrack() { 
