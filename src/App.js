@@ -372,9 +372,13 @@ function App() {
     const now = new Date(Date.now());
     const dateString = now.toISOString();
     // console.log(dateString);
-
+    /*
     exportRecordedBlob(monitorBlob, 'monitor_' + dateString);
     exportRecordedBlob(mixBlob, 'mix_' + dateString);
+    */
+
+    exportRecordedBlob(monitorBlob, 'monitor');
+    exportRecordedBlob(mixBlob, 'mix');
 
   };
 
@@ -572,7 +576,7 @@ function App() {
      <button onClick={handleAutoAdjust}>AutoAdjust</button>
     <hr/>
 
-    <video ref={videoRef} id="monitorVideo" autoPlay
+    <video ref={videoRef} id="monitorVideo" autoPlay muted
        playsInline style={{width: '100%'}} />
     </div>
 

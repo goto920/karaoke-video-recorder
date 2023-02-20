@@ -5,30 +5,35 @@ import {sleep} from './sleep.js';
 export default class StreamRecorder {
   constructor(stream){
 
-/*
     const vtracks = stream.getVideoTracks().length;
     const atracks = stream.getAudioTracks().length;
 
     let mimeType = '';
+
     if (vtracks && atracks) mimeType = 'video/webm;codecs=vp8,opus';
     else if (vtracks && atracks === 0) mimeType = 'video/webm;codecs=vp8';
     else if (vtracks === 0 && atracks) mimeType = 'audio/opus;codecs=opus';
-*/
 
     const options = {
-//      mimeType: mimeType,
+     mimeType: mimeType,
       audioBitsPersecond: 510000
 //      videoBitsPerSecond: 128000,
     };
-//      mimeType: 'video/webm' // let the recorder decide
 
     this.stream = stream.clone();
 
     let chunks = [];
 
     this.exportBlob = null;
-
-    this.recorder = new MediaRecorder(stream, options);
+    
+    try {
+       this.recorder = new MediaRecorder(stream, options);
+    } catch (e) { // for Safari
+       let noMimeTypeOptions = options;
+       delete options.mimeType;
+       this.recorder 
+          = new MediaRecorder(this._recordingStream, noMimeTypeOptions);
+    }
 
     this.recorder.onstop = (e) => { 
       this.exportBlob = new Blob(chunks, {type: chunks[0].type});
