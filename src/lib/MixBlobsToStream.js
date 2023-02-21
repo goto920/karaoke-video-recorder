@@ -74,13 +74,21 @@ export default class MixBlobsToStream {
     const dest = this.ctx.createMediaStreamDestination();
     // const dest = this.ctx.destination;
 
-    this.vocalGainNode = new GainNode(this.ctx);
+    try {
+      this.vocalGainNode = new GainNode(this.ctx);
+    } catch (e) {
+      this.vocalGainNode = this.ctx.createGain();
+    }
     this.setVocalGain(this.vocalGain);
     this.vocal.connect(this.vocalGainNode);
     this.vocalGainNode.connect(dest);
 
     if (this.karaokeFile) {
-      this.karaokeGainNode = new GainNode(this.ctx);
+      try {
+        this.karaokeGainNode = new GainNode(this.ctx);
+      } catch (e) {
+        this.karaokeGainNode = this.ctx.createGain();
+      }
       this.setKaraokeGain(this.karaokeGain);
       this.karaoke.connect(this.karaokeGainNode);
       this.karaokeGainNode.connect(dest);

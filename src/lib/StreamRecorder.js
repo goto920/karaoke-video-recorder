@@ -32,7 +32,7 @@ export default class StreamRecorder {
        let noMimeTypeOptions = options;
        delete options.mimeType;
        this.recorder 
-          = new MediaRecorder(this._recordingStream, noMimeTypeOptions);
+          = new MediaRecorder(stream, noMimeTypeOptions);
     }
 
     this.recorder.onstop = (e) => { 

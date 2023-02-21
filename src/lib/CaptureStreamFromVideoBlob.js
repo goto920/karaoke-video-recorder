@@ -30,8 +30,10 @@ export default class CaptureStreamFromVideoBlob {
           } else if (this.video.mozCaptureStream){
             this.outputStream = this.video.mozCaptureStream(); // Firefox
           } else {
-            alert('Sorry captureStream() is NOT available on this browser',
-            navigator.userAgent);
+            alert('Sorry captureStream() is NOT available on this browser. Mixing is not possible. Just playing recorded video without karaoke', 
+navigator.userAgent);
+            this.video.muted = false; 
+            this.video.play();
           }
         } catch(err) {console.error(err);}
       }

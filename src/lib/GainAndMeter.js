@@ -34,13 +34,23 @@ export default class GainAndMeter {
 
     this.destination = this.ctx.createMediaStreamDestination();
 
-    this.gainNode = new GainNode(this.ctx);
-    this.gainNode.gain.value = Math.pow(10, this.gain/20); // dB
-    this.monitorGainNode = new GainNode(this.ctx);
-    this.monitorGainNode.gain.value = Math.pow(10, -100/20); // dB
+    try {
+      this.gainNode = new GainNode(this.ctx);
+      this.monitorGainNode = new GainNode(this.ctx);
+    } catch (e) {
+      this.gainNode = this.ctx.createGain();
+      this.monitorGainNode = this.ctx.createGain();
+    }
 
-    this.analyserNode = new AnalyserNode(this.ctx, {fftSize: 2048}); 
-    // default 2048
+    this.gainNode.gain.value = Math.pow(10, this.gain/20); // dB
+    this.monitorGainNode.gain.value = Math.pow(10, -100/20); // dB
+    try {
+      this.analyserNode = new AnalyserNode(this.ctx, {fftSize: 2048}); 
+      // default 2048
+    } catch (e) {
+      this.analyserNode = this.ctx.createAnalyser({fftSize: 2048}); 
+      this.analyserNode.fftSize = 2048;
+    }
 
     source.connect(this.gainNode);
     this.gainNode.connect(this.analyserNode);
